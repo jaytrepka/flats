@@ -12,8 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/style.css?v=2.0">
+  <link rel="stylesheet" href="/style.css?v=2.5">
   <script>
     tailwind.config = {
       theme: {
@@ -60,7 +62,7 @@
         <div>
           <span class="font-extrabold text-lg text-slate-900 tracking-tight flex items-center gap-2">
             Byty<span class="text-indigo-600">Bargain</span>
-            <span class="text-[11px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">v2.0 Live</span>
+            <span class="text-[11px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">v2.5 Live</span>
           </span>
           <p class="text-xs text-slate-600 hidden sm:block">Agregátor a cenový srovnávač pro český realitní trh</p>
         </div>
@@ -102,13 +104,52 @@
 
       <form id="searchForm" class="space-y-6">
         
-        <!-- Row 1: Location & Quick Picks -->
+        <!-- Row 1: Location & Map Picker -->
         <div>
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
             <label for="locationInput" class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
               <i class="fa-solid fa-location-dot text-indigo-600"></i> Lokalita / Město / Městská část
             </label>
-            <span class="text-xs text-slate-600">Např. Praha, Brno, Praha 4, Plzeň, Ostrava...</span>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                id="toggleMapBtn"
+                class="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <i class="fa-solid fa-map-location-dot"></i>
+                <span id="toggleMapBtnText">🗺️ Otevřít mapu ČR k výběru</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Interactive Czech Map Section (Collapsible) -->
+          <div id="interactiveMapWrapper" class="mb-4 bg-slate-900/5 rounded-2xl border border-indigo-200 overflow-hidden shadow-xs">
+            <div class="p-3 bg-gradient-to-r from-indigo-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-map text-indigo-400"></i>
+                <span class="font-bold">Interaktivní mapa ČR</span>
+                <span class="text-slate-300 text-[11px]">• Kliknutím kamkoliv do mapy nebo na město vyberete lokalitu</span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-[10px] text-slate-400 uppercase font-semibold">Kraje:</span>
+                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Praha">Praha</button>
+                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Středočeský kraj">Středočeský</button>
+                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Jihomoravský kraj">Jihomoravský</button>
+                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Plzeňský kraj">Plzeňský</button>
+                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Moravskoslezský kraj">Moravskoslezský</button>
+              </div>
+            </div>
+            
+            <div id="selectionMap" class="h-64 sm:h-80 w-full z-10"></div>
+            
+            <div class="p-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
+              <div class="flex items-center gap-1.5 font-medium">
+                <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                <span>Aktuálně vybraná lokalita v mapě:</span>
+                <strong id="mapSelectedLabel" class="text-indigo-700 font-bold">Praha</strong>
+              </div>
+              <span class="text-[11px] text-slate-600 hidden sm:inline">Odznáčky ukazují orientační průměr Kč/m²</span>
+            </div>
           </div>
 
           <div class="relative">
@@ -148,9 +189,9 @@
               <i class="fa-solid fa-shapes text-indigo-600"></i> Dispozice bytu
             </label>
             <div class="flex items-center gap-2">
-              <button type="button" id="selectAllDisp" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold px-1.5 py-0.5 rounded hover:bg-indigo-50 transition">Vybrat vše</button>
+              <button type="button" id="selectAllDisp" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold px-1.5 py-0.5 rounded hover:bg-indigo-50 transition cursor-pointer">Vybrat vše</button>
               <span class="text-slate-300">|</span>
-              <button type="button" id="clearDisp" class="text-xs text-slate-600 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-slate-100 transition">Zrušit vše</button>
+              <button type="button" id="clearDisp" class="text-xs text-slate-600 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-slate-100 transition cursor-pointer">Zrušit vše</button>
             </div>
           </div>
 
@@ -427,18 +468,21 @@
         </div>
 
         <div class="flex items-center gap-2 text-xs">
-          <!-- View Toggle -->
+          <!-- View Toggle (Karty | Tabulka | Mapa) -->
           <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
-            <button id="viewCardsBtn" class="px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs">
+            <button id="viewCardsBtn" class="px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs cursor-pointer">
               <i class="fa-solid fa-grip mr-1"></i> Karty
             </button>
-            <button id="viewTableBtn" class="px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900">
+            <button id="viewTableBtn" class="px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900 cursor-pointer">
               <i class="fa-solid fa-table-list mr-1"></i> Tabulka
+            </button>
+            <button id="viewMapBtn" class="px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900 cursor-pointer">
+              <i class="fa-solid fa-map-location-dot mr-1"></i> Mapa nabídek
             </button>
           </div>
 
           <!-- Export CSV -->
-          <button id="exportCsvBtn" class="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 font-medium text-slate-700 flex items-center gap-1.5 transition">
+          <button id="exportCsvBtn" class="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 font-medium text-slate-700 flex items-center gap-1.5 transition cursor-pointer">
             <i class="fa-solid fa-file-csv text-emerald-600"></i> Export CSV
           </button>
         </div>
@@ -549,6 +593,22 @@
       </div>
     </div>
 
+    <!-- Results Map View -->
+    <div id="resultsMapContainer" class="hidden bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+      <div class="p-3 bg-slate-900 text-white flex items-center justify-between text-xs">
+        <span class="font-bold flex items-center gap-2">
+          <i class="fa-solid fa-map-location-dot text-indigo-400"></i>
+          Mapa nalezených nabídek v lokalitě
+        </span>
+        <div class="flex items-center gap-3 text-[11px]">
+          <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-600"></span> Super sleva (>20%)</span>
+          <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Výhodné (10-20%)</span>
+          <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Pod průměrem (1-10%)</span>
+        </div>
+      </div>
+      <div id="resultsMap" class="h-[550px] w-full z-10"></div>
+    </div>
+
   </main>
 
   <!-- Footer -->
@@ -565,7 +625,9 @@
     </div>
   </footer>
 
-  <!-- Scripts -->
-  <script src="/app.js?v=2.0"></script>
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Main Script -->
+  <script src="/app.js?v=2.5"></script>
 </body>
 </html>

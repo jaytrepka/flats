@@ -1,12 +1,66 @@
-// BytyBargain - Interactive Frontend Application with Visual State & Live Progress
+// BytyBargain - Interactive Frontend Application with Czech Leaflet Map & Bargain Engine
 
 let currentResults = [];
 let currentStats = null;
 let currentCriteria = null;
-let activeView = 'cards'; // 'cards' | 'table'
+let activeView = 'cards'; // 'cards' | 'table' | 'map'
 let progressInterval = null;
 let timerInterval = null;
 let searchStartTime = 0;
+
+let selectionMap = null;
+let resultsMap = null;
+let selectionMarker = null;
+let resultsMarkersLayer = null;
+
+// Major Czech cities with coordinates & benchmark prices (Kč/m²)
+const CZECH_CITIES = [
+  { name: "Praha", lat: 50.0755, lng: 14.4378, avg: 158000, region: "Praha" },
+  { name: "Brno", lat: 49.1951, lng: 16.6068, avg: 128000, region: "Jihomoravský" },
+  { name: "Ostrava", lat: 49.8209, lng: 18.2625, avg: 52000, region: "Moravskoslezský" },
+  { name: "Plzeň", lat: 49.7384, lng: 13.3736, avg: 84000, region: "Plzeňský" },
+  { name: "Liberec", lat: 50.7663, lng: 15.0543, avg: 74000, region: "Liberecký" },
+  { name: "Olomouc", lat: 49.5938, lng: 17.2509, avg: 82000, region: "Olomoucký" },
+  { name: "České Budějovice", lat: 48.9745, lng: 14.4743, avg: 81000, region: "Jihočeský" },
+  { name: "Hradec Králové", lat: 50.2104, lng: 15.8252, avg: 86000, region: "Královéhradecký" },
+  { name: "Pardubice", lat: 50.0343, lng: 15.7812, avg: 79000, region: "Pardubický" },
+  { name: "Ústí nad Labem", lat: 50.6607, lng: 14.0323, avg: 42000, region: "Ústecký" },
+  { name: "Zlín", lat: 49.2243, lng: 17.6627, avg: 76000, region: "Zlínský" },
+  { name: "Jihlava", lat: 49.3961, lng: 15.5912, avg: 72000, region: "Vysočina" },
+  { name: "Karlovy Vary", lat: 50.2319, lng: 12.8719, avg: 62000, region: "Karlovarský" },
+  { name: "Kladno", lat: 50.1473, lng: 14.1028, avg: 78000, region: "Středočeský" },
+  { name: "Mladá Boleslav", lat: 50.4114, lng: 14.9032, avg: 81000, region: "Středočeský" },
+  { name: "Teplice", lat: 50.6404, lng: 13.8245, avg: 41000, region: "Ústecký" },
+  { name: "Most", lat: 50.5030, lng: 13.6362, avg: 34000, region: "Ústecký" },
+  { name: "Děčín", lat: 50.7822, lng: 14.2148, avg: 39000, region: "Ústecký" },
+  { name: "Chomutov", lat: 50.4605, lng: 13.4178, avg: 37000, region: "Ústecký" },
+  { name: "Jablonec nad Nisou", lat: 50.7243, lng: 15.1711, avg: 63000, region: "Liberecký" },
+  { name: "Česká Lípa", lat: 50.6855, lng: 14.5376, avg: 52000, region: "Liberecký" },
+  { name: "Trutnov", lat: 50.5610, lng: 15.9128, avg: 57000, region: "Královéhradecký" },
+  { name: "Kolín", lat: 50.0281, lng: 15.2006, avg: 74000, region: "Středočeský" },
+  { name: "Příbram", lat: 49.6899, lng: 14.0104, avg: 68000, region: "Středočeský" },
+  { name: "Beroun", lat: 49.9638, lng: 14.0720, avg: 86000, region: "Středočeský" },
+  { name: "Kutná Hora", lat: 49.9500, lng: 15.2667, avg: 69000, region: "Středočeský" },
+  { name: "Mělník", lat: 50.3508, lng: 14.4744, avg: 71000, region: "Středočeský" },
+  { name: "Tábor", lat: 49.4144, lng: 14.6578, avg: 68000, region: "Jihočeský" },
+  { name: "Písek", lat: 49.3088, lng: 14.1475, avg: 69000, region: "Jihočeský" },
+  { name: "Cheb", lat: 50.0796, lng: 12.3739, avg: 52000, region: "Karlovarský" },
+  { name: "Třebíč", lat: 49.2149, lng: 15.8817, avg: 62000, region: "Vysočina" },
+  { name: "Znojmo", lat: 48.8555, lng: 16.0488, avg: 69000, region: "Jihomoravský" },
+  { name: "Břeclav", lat: 48.7590, lng: 16.8820, avg: 72000, region: "Jihomoravský" },
+  { name: "Hodonín", lat: 48.8519, lng: 17.1322, avg: 64000, region: "Jihomoravský" },
+  { name: "Prostějov", lat: 49.4719, lng: 17.1122, avg: 65000, region: "Olomoucký" },
+  { name: "Přerov", lat: 49.4551, lng: 17.4509, avg: 54000, region: "Olomoucký" },
+  { name: "Šumperk", lat: 49.9653, lng: 16.9706, avg: 56000, region: "Olomoucký" },
+  { name: "Kroměříž", lat: 49.2979, lng: 17.3931, avg: 64000, region: "Zlínský" },
+  { name: "Uherské Hradiště", lat: 49.0698, lng: 17.4597, avg: 72000, region: "Zlínský" },
+  { name: "Vsetín", lat: 49.3387, lng: 17.9961, avg: 58000, region: "Zlínský" },
+  { name: "Opava", lat: 49.9387, lng: 17.9026, avg: 51000, region: "Moravskoslezský" },
+  { name: "Frýdek-Místek", lat: 49.6853, lng: 18.3491, avg: 54000, region: "Moravskoslezský" },
+  { name: "Karviná", lat: 49.8540, lng: 18.5417, avg: 36000, region: "Moravskoslezský" },
+  { name: "Havířov", lat: 49.7797, lng: 18.4369, avg: 38000, region: "Moravskoslezský" },
+  { name: "Třinec", lat: 49.6778, lng: 18.6708, avg: 52000, region: "Moravskoslezský" },
+];
 
 // Format CZK currency
 function formatCZK(amount) {
@@ -46,6 +100,7 @@ function syncAllDispositionPills() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initUI();
+  initSelectionMap();
   // Auto-search default city (Praha) on initial load
   performSearch();
 });
@@ -58,10 +113,12 @@ function initUI() {
   const clearDispBtn = document.getElementById('clearDisp');
   const viewCardsBtn = document.getElementById('viewCardsBtn');
   const viewTableBtn = document.getElementById('viewTableBtn');
+  const viewMapBtn = document.getElementById('viewMapBtn');
   const exportCsvBtn = document.getElementById('exportCsvBtn');
   const sortBySelect = document.getElementById('sortBy');
   const showAllFlatsBtn = document.getElementById('showAllFlatsBtn');
   const resetDiscountBtn = document.getElementById('resetDiscountBtn');
+  const toggleMapBtn = document.getElementById('toggleMapBtn');
 
   // Slider label live update
   const updateSliderLabel = (val) => {
@@ -77,8 +134,7 @@ function initUI() {
 
   // Disposition Pills Click Handling
   document.querySelectorAll('.disp-pill').forEach(pill => {
-    pill.addEventListener('click', (e) => {
-      // If clicked on pill, let default checkbox toggle happen or sync
+    pill.addEventListener('click', () => {
       setTimeout(() => syncDispositionPill(pill), 10);
     });
   });
@@ -107,17 +163,41 @@ function initUI() {
   // Quick Location Chips
   document.querySelectorAll('.loc-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      const locInput = document.getElementById('locationInput');
-      if (locInput) {
-        locInput.value = chip.getAttribute('data-loc');
-        performSearch();
-      }
+      const loc = chip.getAttribute('data-loc');
+      selectLocationFromMap(loc);
     });
   });
+
+  // Map Kraj Buttons
+  document.querySelectorAll('.map-kraj-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const loc = btn.getAttribute('data-loc');
+      selectLocationFromMap(loc);
+    });
+  });
+
+  // Toggle Selection Map Container
+  if (toggleMapBtn) {
+    toggleMapBtn.addEventListener('click', () => {
+      const mapWrapper = document.getElementById('interactiveMapWrapper');
+      const toggleText = document.getElementById('toggleMapBtnText');
+      if (mapWrapper.classList.contains('hidden')) {
+        mapWrapper.classList.remove('hidden');
+        toggleText.textContent = '▲ Skrýt mapu ČR';
+        setTimeout(() => {
+          if (selectionMap) selectionMap.invalidateSize();
+        }, 150);
+      } else {
+        mapWrapper.classList.add('hidden');
+        toggleText.textContent = '🗺️ Otevřít mapu ČR k výběru';
+      }
+    });
+  }
 
   // View toggle
   if (viewCardsBtn) viewCardsBtn.addEventListener('click', () => setView('cards'));
   if (viewTableBtn) viewTableBtn.addEventListener('click', () => setView('table'));
+  if (viewMapBtn) viewMapBtn.addEventListener('click', () => setView('map'));
 
   // Sort change
   if (sortBySelect) {
@@ -167,6 +247,207 @@ function initUI() {
   syncAllDispositionPills();
 }
 
+// -------------------------------------------------------------
+// Interactive Map Functions
+// -------------------------------------------------------------
+
+function initSelectionMap() {
+  const mapEl = document.getElementById('selectionMap');
+  if (!mapEl || typeof L === 'undefined') return;
+
+  // Czech Republic Center
+  selectionMap = L.map('selectionMap', {
+    scrollWheelZoom: true,
+    zoomControl: true,
+  }).setView([49.8175, 15.4730], 7);
+
+  // CartoDB Voyager tiles (clean, beautiful typography in Czech)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 18,
+  }).addTo(selectionMap);
+
+  // Add City Markers
+  CZECH_CITIES.forEach(city => {
+    const kczk = Math.round(city.avg / 1000);
+    const customHtml = `
+      <div class="custom-city-marker" title="${city.name} (${formatNumber(city.avg)} Kč/m²)">
+        <span>${city.name}</span>
+        <span class="price-sub">${kczk}k</span>
+      </div>
+    `;
+
+    const cityIcon = L.divIcon({
+      html: customHtml,
+      className: '',
+      iconSize: [80, 24],
+      iconAnchor: [40, 12]
+    });
+
+    const marker = L.marker([city.lat, city.lng], { icon: cityIcon }).addTo(selectionMap);
+
+    marker.on('click', () => {
+      selectLocationFromMap(city.name, [city.lat, city.lng]);
+    });
+  });
+
+  // Map Click Handler: Click anywhere to select nearest location or reverse geocode
+  selectionMap.on('click', (e) => {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+
+    // Find nearest city from our database
+    let closestCity = CZECH_CITIES[0];
+    let minDist = 999999;
+    CZECH_CITIES.forEach(c => {
+      const d = Math.hypot(c.lat - lat, c.lng - lng);
+      if (d < minDist) {
+        minDist = d;
+        closestCity = c;
+      }
+    });
+
+    selectLocationFromMap(closestCity.name, [lat, lng]);
+  });
+
+  // Default selection marker in Prague
+  selectionMarker = L.circleMarker([50.0755, 14.4378], {
+    radius: 10,
+    color: '#4f46e5',
+    fillColor: '#6366f1',
+    fillOpacity: 0.8,
+    weight: 3
+  }).addTo(selectionMap);
+}
+
+function selectLocationFromMap(locationName, coords) {
+  const locInput = document.getElementById('locationInput');
+  const labelEl = document.getElementById('mapSelectedLabel');
+
+  if (locInput) locInput.value = locationName;
+  if (labelEl) labelEl.textContent = locationName;
+
+  // Move marker & pan map if coords available or found
+  let targetCoords = coords;
+  if (!targetCoords) {
+    const found = CZECH_CITIES.find(c => c.name.toLowerCase() === locationName.toLowerCase());
+    if (found) targetCoords = [found.lat, found.lng];
+  }
+
+  if (targetCoords && selectionMarker && selectionMap) {
+    selectionMarker.setLatLng(targetCoords);
+    selectionMap.setView(targetCoords, Math.max(9, selectionMap.getZoom()));
+  }
+
+  // Trigger search
+  performSearch();
+}
+
+function initResultsMap() {
+  const mapEl = document.getElementById('resultsMap');
+  if (!mapEl || typeof L === 'undefined') return;
+
+  if (!resultsMap) {
+    resultsMap = L.map('resultsMap').setView([49.8175, 15.4730], 8);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      maxZoom: 18,
+    }).addTo(resultsMap);
+    resultsMarkersLayer = L.layerGroup().addTo(resultsMap);
+  }
+
+  renderResultsOnMap();
+}
+
+function renderResultsOnMap() {
+  if (!resultsMap || !resultsMarkersLayer) return;
+
+  resultsMarkersLayer.clearLayers();
+
+  const validEstates = currentResults.filter(f => f.latitude && f.longitude);
+
+  if (validEstates.length === 0) {
+    // If no coordinates in results, center on searched city
+    const matchedCity = CZECH_CITIES.find(c => currentCriteria && c.name.toLowerCase() === currentCriteria.location.toLowerCase());
+    if (matchedCity) {
+      resultsMap.setView([matchedCity.lat, matchedCity.lng], 11);
+    }
+    return;
+  }
+
+  const latLngs = [];
+
+  validEstates.forEach(flat => {
+    const lat = flat.latitude;
+    const lng = flat.longitude;
+    latLngs.push([lat, lng]);
+
+    // Color code marker based on discount
+    let bgColor = '#16a34a'; // green
+    let iconClass = 'fa-tag';
+    if (flat.discount_percentage >= 20.0) {
+      bgColor = '#dc2626'; // red
+      iconClass = 'fa-fire';
+    } else if (flat.discount_percentage >= 10.0) {
+      bgColor = '#ea580c'; // orange
+      iconClass = 'fa-bolt';
+    }
+
+    const markerHtml = `
+      <div class="custom-estate-marker" style="background-color: ${bgColor}; width: 34px; height: 34px; border: 2px solid white;">
+        <i class="fa-solid ${iconClass}"></i>
+      </div>
+    `;
+
+    const icon = L.divIcon({
+      html: markerHtml,
+      className: '',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -18]
+    });
+
+    const popupHtml = `
+      <div class="w-64 overflow-hidden rounded-xl font-sans text-xs">
+        ${flat.image_url ? `<img src="${flat.image_url}" class="w-full h-28 object-cover" />` : ''}
+        <div class="p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-900">${flat.disposition} • ${flat.area_m2} m²</span>
+            <span class="font-bold text-white px-2 py-0.5 rounded text-[10px]" style="background-color: ${bgColor}">
+              -${flat.discount_percentage}%
+            </span>
+          </div>
+          <h4 class="font-bold text-slate-800 text-xs line-clamp-1">${escapeHtml(flat.title)}</h4>
+          <div class="bg-slate-50 p-2 rounded border border-slate-200 text-[11px] space-y-1">
+            <div class="flex justify-between">
+              <span class="text-slate-600">Cena:</span>
+              <strong class="text-slate-900">${formatCZK(flat.price_czk)}</strong>
+            </div>
+            <div class="flex justify-between text-emerald-700 font-bold">
+              <span>Úspora:</span>
+              <span>+${formatCZK(flat.difference_czk)}</span>
+            </div>
+          </div>
+          <a href="${flat.url}" target="_blank" class="block text-center py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition">
+            Zobrazit inzerát ↗
+          </a>
+        </div>
+      </div>
+    `;
+
+    const marker = L.marker([lat, lng], { icon }).bindPopup(popupHtml);
+    resultsMarkersLayer.addLayer(marker);
+  });
+
+  if (latLngs.length > 0) {
+    resultsMap.fitBounds(L.latLngBounds(latLngs), { padding: [40, 40], maxZoom: 14 });
+  }
+}
+
+// -------------------------------------------------------------
+// Search & Filter Logic
+// -------------------------------------------------------------
+
 function getSearchCriteria() {
   const location = document.getElementById('locationInput')?.value?.trim() || 'Praha';
   
@@ -214,19 +495,13 @@ function startLoadingProgress(locationName) {
   const searchBtnText = document.getElementById('searchBtnText');
   const timerSeconds = document.getElementById('timerSeconds');
 
-  // Reset steps
   ['stepSreality', 'stepBezrealitky', 'stepRemax', 'stepBazos'].forEach(id => {
     const el = document.getElementById(id);
     const icon = document.getElementById(`${id}Icon`);
-    if (el) {
-      el.className = 'flex items-center gap-2 p-2 rounded-lg bg-slate-50 text-slate-700 border border-slate-100';
-    }
-    if (icon) {
-      icon.className = 'fa-solid fa-spinner fa-spin text-indigo-600';
-    }
+    if (el) el.className = 'flex items-center gap-2 p-2 rounded-lg bg-slate-50 text-slate-700 border border-slate-100';
+    if (icon) icon.className = 'fa-solid fa-spinner fa-spin text-indigo-600';
   });
 
-  // UI state: loading
   if (searchBtn) searchBtn.disabled = true;
   if (searchBtnIcon) searchBtnIcon.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   if (searchBtnText) searchBtnText.textContent = `Vyhledávám v lokalitě ${locationName}...`;
@@ -308,6 +583,7 @@ async function performSearch() {
   const emptyState = document.getElementById('emptyState');
   const resultsGrid = document.getElementById('resultsGrid');
   const resultsTableContainer = document.getElementById('resultsTableContainer');
+  const resultsMapContainer = document.getElementById('resultsMapContainer');
   const statsSection = document.getElementById('statsSection');
 
   startLoadingProgress(criteria.location);
@@ -377,11 +653,13 @@ function sortAndRenderResults() {
   const emptyState = document.getElementById('emptyState');
   const resultsGrid = document.getElementById('resultsGrid');
   const resultsTableContainer = document.getElementById('resultsTableContainer');
+  const resultsMapContainer = document.getElementById('resultsMapContainer');
 
   if (!currentResults || currentResults.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
     if (resultsGrid) resultsGrid.classList.add('hidden');
     if (resultsTableContainer) resultsTableContainer.classList.add('hidden');
+    if (resultsMapContainer) resultsMapContainer.classList.add('hidden');
 
     const emptyTitle = document.getElementById('emptyTitle');
     const emptyDesc = document.getElementById('emptyDescription');
@@ -411,6 +689,7 @@ function sortAndRenderResults() {
 
   renderCardsView(currentResults);
   renderTableView(currentResults);
+  renderResultsOnMap();
 
   setView(activeView);
 }
@@ -423,7 +702,6 @@ function renderCardsView(listings) {
   listings.forEach(flat => {
     const portal = PORTAL_META[flat.portal] || { name: flat.portal, color: 'bg-slate-100 text-slate-700', icon: 'fa-globe' };
     
-    // Tier badges
     let tierBadgeHtml = '';
     if (flat.discount_percentage >= 20.0) {
       tierBadgeHtml = `<span class="px-2.5 py-1 rounded-lg text-xs font-black bg-red-600 text-white shadow-xs badge-super-bargain flex items-center gap-1">
@@ -598,19 +876,33 @@ function setView(view) {
   activeView = view;
   const cardsBtn = document.getElementById('viewCardsBtn');
   const tableBtn = document.getElementById('viewTableBtn');
+  const viewMapBtn = document.getElementById('viewMapBtn');
   const resultsGrid = document.getElementById('resultsGrid');
   const resultsTableContainer = document.getElementById('resultsTableContainer');
+  const resultsMapContainer = document.getElementById('resultsMapContainer');
+
+  // Reset classes
+  [cardsBtn, tableBtn, viewMapBtn].forEach(btn => {
+    if (btn) btn.className = 'px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900 cursor-pointer';
+  });
+
+  if (resultsGrid) resultsGrid.classList.add('hidden');
+  if (resultsTableContainer) resultsTableContainer.classList.add('hidden');
+  if (resultsMapContainer) resultsMapContainer.classList.add('hidden');
 
   if (view === 'cards') {
-    if (cardsBtn) cardsBtn.className = 'px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs';
-    if (tableBtn) tableBtn.className = 'px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900';
+    if (cardsBtn) cardsBtn.className = 'px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs cursor-pointer';
     if (resultsGrid) resultsGrid.classList.remove('hidden');
-    if (resultsTableContainer) resultsTableContainer.classList.add('hidden');
-  } else {
-    if (tableBtn) tableBtn.className = 'px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs';
-    if (cardsBtn) cardsBtn.className = 'px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900';
+  } else if (view === 'table') {
+    if (tableBtn) tableBtn.className = 'px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs cursor-pointer';
     if (resultsTableContainer) resultsTableContainer.classList.remove('hidden');
-    if (resultsGrid) resultsGrid.classList.add('hidden');
+  } else if (view === 'map') {
+    if (viewMapBtn) viewMapBtn.className = 'px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs cursor-pointer';
+    if (resultsMapContainer) resultsMapContainer.classList.remove('hidden');
+    initResultsMap();
+    setTimeout(() => {
+      if (resultsMap) resultsMap.invalidateSize();
+    }, 150);
   }
 }
 

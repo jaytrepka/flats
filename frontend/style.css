@@ -1,4 +1,4 @@
-/* Custom styling for BytyBargain */
+/* Custom styling for BytyBargain with Leaflet map enhancements */
 
 /* Smooth scroll & base */
 html {
@@ -55,4 +55,66 @@ html {
 
 .badge-super-bargain {
   animation: super-pulse 2s infinite;
+}
+
+/* Map Custom Markers & Popups */
+.custom-city-marker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: white;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1.5px solid #4f46e5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e1b4b;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s;
+}
+
+.custom-city-marker:hover {
+  transform: scale(1.1);
+  background: #eef2ff;
+  border-color: #4338ca;
+  z-index: 1000 !important;
+}
+
+.custom-city-marker .price-sub {
+  font-size: 9px;
+  font-weight: 600;
+  color: #6366f1;
+}
+
+.custom-estate-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.custom-estate-marker:hover {
+  transform: scale(1.2);
+  z-index: 1000 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 1rem !important;
+  padding: 0 !important;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.4 !important;
 }
