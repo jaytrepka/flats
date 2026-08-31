@@ -1,4 +1,4 @@
-/* Custom styling for BytyBargain with Leaflet map enhancements */
+/* Custom styling for BytyBargain with Multi-Region Leaflet Map */
 
 /* Smooth scroll & base */
 html {
@@ -15,7 +15,6 @@ html {
   box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
 }
 
-/* Image zoom on card hover */
 .flat-card:hover .flat-img {
   transform: scale(1.04);
 }
@@ -57,30 +56,43 @@ html {
   animation: super-pulse 2s infinite;
 }
 
-/* Map Custom Markers & Popups */
+/* City Map Markers */
 .custom-city-marker {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   background: white;
   padding: 3px 8px;
   border-radius: 9999px;
-  border: 1.5px solid #4f46e5;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
   font-family: inherit;
   font-size: 11px;
-  font-weight: 700;
-  color: #1e1b4b;
+  font-weight: 600;
+  color: #334155;
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 0.15s ease, background-color 0.15s;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
 .custom-city-marker:hover {
-  transform: scale(1.1);
-  background: #eef2ff;
-  border-color: #4338ca;
+  transform: scale(1.08);
+  border-color: #6366f1;
+  background: #f8fafc;
   z-index: 1000 !important;
+}
+
+.custom-city-marker.is-selected {
+  background: #4f46e5 !important;
+  color: white !important;
+  border-color: #3730a3 !important;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.45) !important;
+  font-weight: 700 !important;
+}
+
+.custom-city-marker.is-selected .price-sub {
+  color: #e0e7ff !important;
 }
 
 .custom-city-marker .price-sub {
@@ -89,6 +101,7 @@ html {
   color: #6366f1;
 }
 
+/* Estate Markers */
 .custom-estate-marker {
   display: flex;
   align-items: center;
@@ -107,6 +120,7 @@ html {
   z-index: 1000 !important;
 }
 
+/* Leaflet popups & Tooltips */
 .leaflet-popup-content-wrapper {
   border-radius: 1rem !important;
   padding: 0 !important;
@@ -117,4 +131,19 @@ html {
 .leaflet-popup-content {
   margin: 0 !important;
   line-height: 1.4 !important;
+}
+
+.region-tooltip {
+  background: rgba(15, 23, 42, 0.9) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+}
+
+.region-tooltip::before {
+  border-top-color: rgba(15, 23, 42, 0.9) !important;
 }

@@ -60,8 +60,13 @@ async def run_scraper_safe(scraper, criteria: SearchCriteria) -> List[FlatListin
 
 @app.post("/api/search", response_model=SearchResponse)
 async def search_flats(criteria: SearchCriteria) -> SearchResponse:
-    """Execute concurrent search across all selected Czech real estate portals."""
-    logger.info(f"Received search request for location='{criteria.location}', dispositions={criteria.dispositions}, portals={criteria.portals}")
+    """Execute concurrent search across all selected Czech real estate portals and locations."""
+    loc_list = criteria.locations if (criteria.locations and len(criteria.locations) > 0) else [criteria.location]
+    loc_list = [l.strip() for l in loc_list if l and l.strip()]
+    if not loc_list:
+        loc_list = ["Praha"]
+
+    logger.info(f"Received search request for locations={loc_list}, dispositions={criteria.dispositions}, portals={criteria.portals}")
     
     selected_scrapers = []
     for p in criteria.portals:
@@ -72,19 +77,29 @@ async def search_flats(criteria: SearchCriteria) -> SearchResponse:
     if not selected_scrapers:
         selected_scrapers = list(SCRAPERS.values())
 
-    # Execute all scraper tasks concurrently with timeout guard
-    tasks = [run_scraper_safe(scraper, criteria) for scraper in selected_scrapers]
+    # Execute all scraper tasks for all locations concurrently with timeout guard
+    tasks = []
+    for loc in loc_list:
+        loc_criteria = criteria.model_copy(update={"location": loc})
+        for scraper in selected_scrapers:
+            tasks.append(run_scraper_safe(scraper, loc_criteria))
+
     results_nested = await asyncio.gather(*tasks, return_exceptions=True)
 
     all_listings: List[FlatListing] = []
-    for idx, res in enumerate(results_nested):
-        scraper_name = selected_scrapers[idx].portal_name
+    seen_ids = set()
+    for res in results_nested:
         if isinstance(res, list):
-            logger.info(f"Scraper '{scraper_name}' returned {len(res)} listings")
-            all_listings.extend(res)
+            for flat in res:
+                if flat.id not in seen_ids and flat.url not in seen_ids:
+                    seen_ids.add(flat.id)
+                    seen_ids.add(flat.url)
+                    all_listings.append(flat)
 
     # Process pricing and apply bargain filtering
     response = calculate_pricing_and_filter(all_listings, criteria)
+    if len(loc_list) > 1:
+        response.stats.locality_name = ", ".join(loc_list[:3]) + (f" (+{len(loc_list)-3})" if len(loc_list) > 3 else "")
     logger.info(f"Found {len(response.listings)} matching bargain flats out of {response.stats.total_scanned} scanned")
     return response
 

@@ -15,7 +15,7 @@
   <!-- Leaflet Map CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/style.css?v=2.5">
+  <link rel="stylesheet" href="/style.css?v=3.0">
   <script>
     tailwind.config = {
       theme: {
@@ -62,7 +62,7 @@
         <div>
           <span class="font-extrabold text-lg text-slate-900 tracking-tight flex items-center gap-2">
             Byty<span class="text-indigo-600">Bargain</span>
-            <span class="text-[11px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">v2.5 Live</span>
+            <span class="text-[11px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">v3.0 Multi-Region</span>
           </span>
           <p class="text-xs text-slate-600 hidden sm:block">Agregátor a cenový srovnávač pro český realitní trh</p>
         </div>
@@ -98,87 +98,109 @@
           <h1 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
             <span>Vyhledávač a cenový srovnávač nemovitostí</span>
           </h1>
-          <p class="text-xs text-slate-600">Zadejte kritéria a systém spočítá tržní průměr za m² a vyhledá podprůměrné nabídky</p>
+          <p class="text-xs text-slate-600">Vyberte kraje nebo města na mapě, nastavte filtry a systém vyhledá podprůměrné nabídky</p>
         </div>
       </div>
 
       <form id="searchForm" class="space-y-6">
         
-        <!-- Row 1: Location & Map Picker -->
+        <!-- Row 1: Multi-Location Selection & Czech Map -->
         <div>
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-            <label for="locationInput" class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-              <i class="fa-solid fa-location-dot text-indigo-600"></i> Lokalita / Město / Městská část
+            <label class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-map-location-dot text-indigo-600"></i> Vybrané lokality & Kraje ČR (Vícenásobný výběr)
             </label>
             <div class="flex items-center gap-2">
+              <button type="button" id="clearAllLocationsBtn" class="text-xs text-slate-500 hover:text-red-600 font-medium transition cursor-pointer">
+                <i class="fa-solid fa-trash-can mr-1"></i> Vyčistit lokality
+              </button>
+              <span class="text-slate-300">|</span>
               <button
                 type="button"
                 id="toggleMapBtn"
                 class="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                <i class="fa-solid fa-map-location-dot"></i>
-                <span id="toggleMapBtnText">🗺️ Otevřít mapu ČR k výběru</span>
+                <i class="fa-solid fa-map"></i>
+                <span id="toggleMapBtnText">▲ Skrýt mapu ČR</span>
               </button>
             </div>
           </div>
 
-          <!-- Interactive Czech Map Section (Collapsible) -->
+          <!-- Selected Location Chips Container -->
+          <div id="selectedLocationsContainer" class="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 mb-3 min-h-[44px]">
+            <!-- Injected by app.js -->
+          </div>
+
+          <!-- Interactive Czech Map Section -->
           <div id="interactiveMapWrapper" class="mb-4 bg-slate-900/5 rounded-2xl border border-indigo-200 overflow-hidden shadow-xs">
-            <div class="p-3 bg-gradient-to-r from-indigo-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-              <div class="flex items-center gap-2">
-                <i class="fa-solid fa-map text-indigo-400"></i>
-                <span class="font-bold">Interaktivní mapa ČR</span>
-                <span class="text-slate-300 text-[11px]">• Kliknutím kamkoliv do mapy nebo na město vyberete lokalitu</span>
+            
+            <!-- 14 Czech Kraje Quick-Select Bar -->
+            <div class="p-3 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-layer-group text-indigo-400"></i> Kraje ČR (kliknutím vyberete/odeberete):
+                  </span>
+                </div>
+                <span class="text-[11px] text-slate-300 hidden sm:inline">
+                  <i class="fa-solid fa-hand-pointer mr-1"></i> Výběr se neodesílá automaticky, potvrďte tlačítkem dole
+                </span>
               </div>
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-[10px] text-slate-400 uppercase font-semibold">Kraje:</span>
-                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Praha">Praha</button>
-                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Středočeský kraj">Středočeský</button>
-                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Jihomoravský kraj">Jihomoravský</button>
-                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Plzeňský kraj">Plzeňský</button>
-                <button type="button" class="map-kraj-btn px-2 py-0.5 rounded bg-white/10 hover:bg-indigo-600 text-[11px] font-medium transition" data-loc="Moravskoslezský kraj">Moravskoslezský</button>
+
+              <!-- 14 Kraje Pills -->
+              <div class="flex flex-wrap gap-1.5" id="krajePillsContainer">
+                <!-- Injected by app.js for all 14 Kraje -->
               </div>
             </div>
             
-            <div id="selectionMap" class="h-64 sm:h-80 w-full z-10"></div>
+            <!-- Leaflet Selection Map -->
+            <div id="selectionMap" class="h-72 sm:h-96 w-full z-10"></div>
             
-            <div class="p-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
-              <div class="flex items-center gap-1.5 font-medium">
+            <!-- Map Footer Helper -->
+            <div class="p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-600">
+              <div class="flex items-center gap-2 font-medium">
                 <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                <span>Aktuálně vybraná lokalita v mapě:</span>
-                <strong id="mapSelectedLabel" class="text-indigo-700 font-bold">Praha</strong>
+                <span>Kliknutím na kraj na mapě nebo na odznak města přidáte/odeberete lokalitu z vyhledávání.</span>
               </div>
-              <span class="text-[11px] text-slate-600 hidden sm:inline">Odznáčky ukazují orientační průměr Kč/m²</span>
+              <div class="text-[11px] text-slate-500">
+                Lze kombinovat více krajů i měst současně
+              </div>
             </div>
           </div>
 
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <i class="fa-solid fa-magnifying-glass"></i>
+          <!-- Manual Add Location Input -->
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i class="fa-solid fa-magnifying-glass"></i>
+              </div>
+              <input
+                type="text"
+                id="locationInput"
+                placeholder="Zadejte další město, čtvrť nebo okres (např. Kralupy nad Vltavou, Praha 4, Olomouc)..."
+                class="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition font-medium text-slate-900 bg-white"
+              />
             </div>
-            <input
-              type="text"
-              id="locationInput"
-              name="location"
-              value="Praha"
-              placeholder="Zadejte město, čtvrť nebo okres..."
-              class="w-full pl-10 pr-4 py-2.5 text-sm sm:text-base rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition font-medium text-slate-900 bg-slate-50/50 focus:bg-white"
-              required
-            />
+            <button
+              type="button"
+              id="addLocationBtn"
+              class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-bold text-xs border border-slate-300 transition whitespace-nowrap cursor-pointer"
+            >
+              <i class="fa-solid fa-plus mr-1"></i> Přidat
+            </button>
           </div>
 
-          <!-- Quick Location Chips -->
+          <!-- Quick City Chips -->
           <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
-            <span class="text-xs font-medium text-slate-600 mr-1">Rychlé volby:</span>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Praha">Praha</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Praha 4">Praha 4</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Brno">Brno</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Plzeň">Plzeň</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Olomouc">Olomouc</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Ostrava">Ostrava</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Hradec Králové">Hradec Králové</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="České Budějovice">České Budějovice</button>
-            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Liberec">Liberec</button>
+            <span class="text-xs font-medium text-slate-600 mr-1">Rychlé přidání:</span>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="Praha">+ Praha</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="Brno">+ Brno</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="Plzeň">+ Plzeň</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="Olomouc">+ Olomouc</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="Ostrava">+ Ostrava</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="Hradec Králové">+ Hradec Králové</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="České Budějovice">+ České Budějovice</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition cursor-pointer" data-loc="Liberec">+ Liberec</button>
           </div>
         </div>
 
@@ -398,7 +420,7 @@
             <button
               type="submit"
               id="searchBtn"
-              class="w-full sm:w-auto px-7 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-75 disabled:cursor-wait"
+              class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-75 disabled:cursor-wait"
             >
               <span id="searchBtnIcon"><i class="fa-solid fa-magnifying-glass"></i></span>
               <span id="searchBtnText">Vyhledat výhodné nabídky</span>
@@ -627,7 +649,9 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Czech Kraje Boundaries GeoJSON -->
+  <script src="/kraje.js?v=3.0"></script>
   <!-- Main Script -->
-  <script src="/app.js?v=2.5"></script>
+  <script src="/app.js?v=3.0"></script>
 </body>
 </html>

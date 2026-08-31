@@ -1,5 +1,6 @@
-// BytyBargain - Interactive Frontend Application with Czech Leaflet Map & Bargain Engine
+// BytyBargain - Interactive Multi-Region Real Estate Aggregator & Bargain Finder
 
+let selectedLocations = new Set(['Praha']);
 let currentResults = [];
 let currentStats = null;
 let currentCriteria = null;
@@ -10,8 +11,27 @@ let searchStartTime = 0;
 
 let selectionMap = null;
 let resultsMap = null;
-let selectionMarker = null;
+let krajeGeoJsonLayer = null;
+let cityMarkersMap = {};
 let resultsMarkersLayer = null;
+
+// 14 Czech Regions (Kraje) Dataset
+const CZECH_KRAJE = [
+  { name: "Hlavní město Praha", short: "Praha", avg: 158000 },
+  { name: "Středočeský kraj", short: "Středočeský", avg: 82000 },
+  { name: "Jihočeský kraj", short: "Jihočeský", avg: 81000 },
+  { name: "Plzeňský kraj", short: "Plzeňský", avg: 84000 },
+  { name: "Karlovarský kraj", short: "Karlovarský", avg: 62000 },
+  { name: "Ústecký kraj", short: "Ústecký", avg: 42000 },
+  { name: "Liberecký kraj", short: "Liberecký", avg: 74000 },
+  { name: "Královéhradecký kraj", short: "Královéhradecký", avg: 86000 },
+  { name: "Pardubický kraj", short: "Pardubický", avg: 79000 },
+  { name: "Kraj Vysočina", short: "Vysočina", avg: 72000 },
+  { name: "Jihomoravský kraj", short: "Jihomoravský", avg: 128000 },
+  { name: "Olomoucký kraj", short: "Olomoucký", avg: 82000 },
+  { name: "Zlínský kraj", short: "Zlínský", avg: 76000 },
+  { name: "Moravskoslezský kraj", short: "Moravskoslezský", avg: 52000 },
+];
 
 // Major Czech cities with coordinates & benchmark prices (Kč/m²)
 const CZECH_CITIES = [
@@ -30,6 +50,7 @@ const CZECH_CITIES = [
   { name: "Karlovy Vary", lat: 50.2319, lng: 12.8719, avg: 62000, region: "Karlovarský" },
   { name: "Kladno", lat: 50.1473, lng: 14.1028, avg: 78000, region: "Středočeský" },
   { name: "Mladá Boleslav", lat: 50.4114, lng: 14.9032, avg: 81000, region: "Středočeský" },
+  { name: "Kralupy nad Vltavou", lat: 50.2411, lng: 14.3046, avg: 74000, region: "Středočeský" },
   { name: "Teplice", lat: 50.6404, lng: 13.8245, avg: 41000, region: "Ústecký" },
   { name: "Most", lat: 50.5030, lng: 13.6362, avg: 34000, region: "Ústecký" },
   { name: "Děčín", lat: 50.7822, lng: 14.2148, avg: 39000, region: "Ústecký" },
@@ -62,7 +83,6 @@ const CZECH_CITIES = [
   { name: "Třinec", lat: 49.6778, lng: 18.6708, avg: 52000, region: "Moravskoslezský" },
 ];
 
-// Format CZK currency
 function formatCZK(amount) {
   if (amount === undefined || amount === null || isNaN(amount)) return '0 Kč';
   return Math.round(amount).toLocaleString('cs-CZ') + ' Kč';
@@ -73,7 +93,6 @@ function formatNumber(num) {
   return Math.round(num).toLocaleString('cs-CZ');
 }
 
-// Portal colors & badges
 const PORTAL_META = {
   sreality: { name: 'Sreality.cz', color: 'bg-red-100 text-red-700 border-red-200', icon: 'fa-house-chimney' },
   bezrealitky: { name: 'Bezrealitky.cz', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: 'fa-handshake' },
@@ -81,197 +100,183 @@ const PORTAL_META = {
   bazos: { name: 'Bazoš Reality', color: 'bg-amber-100 text-amber-800 border-amber-200', icon: 'fa-tags' },
 };
 
-// Update visual styling of disposition pills
-function syncDispositionPill(labelEl) {
-  const checkbox = labelEl.querySelector('input[name="disposition"]');
-  const box = labelEl.querySelector('.pill-box');
-  if (!checkbox || !box) return;
+// -------------------------------------------------------------
+// Multi-Location State & Tag Chips Management
+// -------------------------------------------------------------
 
-  if (checkbox.checked) {
-    box.className = 'pill-box text-center py-2 px-2 rounded-xl border border-indigo-600 bg-indigo-50 text-indigo-700 font-bold text-xs transition shadow-2xs hover:border-indigo-500';
+function toggleLocation(locName) {
+  if (!locName || !locName.trim()) return;
+  const name = locName.trim();
+
+  // Find canonical name if matches region or city
+  let canonicalName = name;
+  const matchKraj = CZECH_KRAJE.find(k => k.name.toLowerCase() === name.toLowerCase() || k.short.toLowerCase() === name.toLowerCase());
+  if (matchKraj) canonicalName = matchKraj.name;
+
+  if (selectedLocations.has(canonicalName)) {
+    selectedLocations.delete(canonicalName);
   } else {
-    box.className = 'pill-box text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition shadow-2xs hover:border-slate-300';
+    selectedLocations.add(canonicalName);
   }
+
+  renderSelectedLocations();
+  updateMapVisuals();
+  updateKrajePills();
 }
 
-function syncAllDispositionPills() {
-  document.querySelectorAll('.disp-pill').forEach(syncDispositionPill);
+function addLocation(locName) {
+  if (!locName || !locName.trim()) return;
+  const name = locName.trim();
+  selectedLocations.add(name);
+  renderSelectedLocations();
+  updateMapVisuals();
+  updateKrajePills();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initUI();
-  initSelectionMap();
-  // Auto-search default city (Praha) on initial load
-  performSearch();
-});
+function removeLocation(locName) {
+  selectedLocations.delete(locName);
+  renderSelectedLocations();
+  updateMapVisuals();
+  updateKrajePills();
+}
 
-function initUI() {
-  const form = document.getElementById('searchForm');
-  const minDiscountSlider = document.getElementById('minDiscount');
-  const discountLabel = document.getElementById('discountLabel');
-  const selectAllDispBtn = document.getElementById('selectAllDisp');
-  const clearDispBtn = document.getElementById('clearDisp');
-  const viewCardsBtn = document.getElementById('viewCardsBtn');
-  const viewTableBtn = document.getElementById('viewTableBtn');
-  const viewMapBtn = document.getElementById('viewMapBtn');
-  const exportCsvBtn = document.getElementById('exportCsvBtn');
-  const sortBySelect = document.getElementById('sortBy');
-  const showAllFlatsBtn = document.getElementById('showAllFlatsBtn');
-  const resetDiscountBtn = document.getElementById('resetDiscountBtn');
-  const toggleMapBtn = document.getElementById('toggleMapBtn');
+function clearAllLocations() {
+  selectedLocations.clear();
+  renderSelectedLocations();
+  updateMapVisuals();
+  updateKrajePills();
+}
 
-  // Slider label live update
-  const updateSliderLabel = (val) => {
-    if (discountLabel) {
-      discountLabel.textContent = `${val}%`;
-    }
-  };
+function renderSelectedLocations() {
+  const container = document.getElementById('selectedLocationsContainer');
+  if (!container) return;
 
-  if (minDiscountSlider) {
-    minDiscountSlider.addEventListener('input', (e) => updateSliderLabel(e.target.value));
-    minDiscountSlider.addEventListener('change', (e) => updateSliderLabel(e.target.value));
+  container.innerHTML = '';
+
+  if (selectedLocations.size === 0) {
+    container.innerHTML = `
+      <span class="text-xs text-slate-500 italic py-1">
+        <i class="fa-solid fa-circle-info mr-1 text-slate-400"></i> Nebyla vybrána žádná lokalita (vyberte na mapě nebo zadejte do pole níže)
+      </span>
+    `;
+    return;
   }
 
-  // Disposition Pills Click Handling
-  document.querySelectorAll('.disp-pill').forEach(pill => {
-    pill.addEventListener('click', () => {
-      setTimeout(() => syncDispositionPill(pill), 10);
+  selectedLocations.forEach(loc => {
+    const isRegion = CZECH_KRAJE.some(k => k.name.toLowerCase() === loc.toLowerCase());
+    const chip = document.createElement('span');
+    chip.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold shadow-2xs border transition animate-fade-in ${
+      isRegion
+        ? 'bg-indigo-600 text-white border-indigo-700'
+        : 'bg-white text-indigo-950 border-indigo-200'
+    }`;
+
+    chip.innerHTML = `
+      <i class="fa-solid ${isRegion ? 'fa-map' : 'fa-location-dot'} text-[10px] opacity-80"></i>
+      <span>${escapeHtml(loc)}</span>
+      <button type="button" class="ml-1 hover:text-red-400 font-black cursor-pointer text-xs" title="Odebrat">✕</button>
+    `;
+
+    chip.querySelector('button').addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeLocation(loc);
     });
+
+    container.appendChild(chip);
   });
+}
 
-  // Select all / clear dispositions
-  if (selectAllDispBtn) {
-    selectAllDispBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.querySelectorAll('input[name="disposition"]').forEach(cb => {
-        cb.checked = true;
-      });
-      syncAllDispositionPills();
-    });
-  }
+function updateKrajePills() {
+  const container = document.getElementById('krajePillsContainer');
+  if (!container) return;
 
-  if (clearDispBtn) {
-    clearDispBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.querySelectorAll('input[name="disposition"]').forEach(cb => {
-        cb.checked = false;
-      });
-      syncAllDispositionPills();
-    });
-  }
+  container.innerHTML = '';
 
-  // Quick Location Chips
-  document.querySelectorAll('.loc-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const loc = chip.getAttribute('data-loc');
-      selectLocationFromMap(loc);
-    });
-  });
+  CZECH_KRAJE.forEach(kraj => {
+    const isSelected = selectedLocations.has(kraj.name) || selectedLocations.has(kraj.short);
+    const kczk = Math.round(kraj.avg / 1000);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
+      isSelected
+        ? 'bg-indigo-500 text-white border-indigo-300 shadow-xs'
+        : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/10'
+    }`;
 
-  // Map Kraj Buttons
-  document.querySelectorAll('.map-kraj-btn').forEach(btn => {
+    btn.innerHTML = `
+      <span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-slate-400'}"></span>
+      <span>${kraj.short}</span>
+      <span class="text-[10px] opacity-75">${kczk}k</span>
+    `;
+
     btn.addEventListener('click', () => {
-      const loc = btn.getAttribute('data-loc');
-      selectLocationFromMap(loc);
+      toggleLocation(kraj.name);
     });
+
+    container.appendChild(btn);
   });
-
-  // Toggle Selection Map Container
-  if (toggleMapBtn) {
-    toggleMapBtn.addEventListener('click', () => {
-      const mapWrapper = document.getElementById('interactiveMapWrapper');
-      const toggleText = document.getElementById('toggleMapBtnText');
-      if (mapWrapper.classList.contains('hidden')) {
-        mapWrapper.classList.remove('hidden');
-        toggleText.textContent = '▲ Skrýt mapu ČR';
-        setTimeout(() => {
-          if (selectionMap) selectionMap.invalidateSize();
-        }, 150);
-      } else {
-        mapWrapper.classList.add('hidden');
-        toggleText.textContent = '🗺️ Otevřít mapu ČR k výběru';
-      }
-    });
-  }
-
-  // View toggle
-  if (viewCardsBtn) viewCardsBtn.addEventListener('click', () => setView('cards'));
-  if (viewTableBtn) viewTableBtn.addEventListener('click', () => setView('table'));
-  if (viewMapBtn) viewMapBtn.addEventListener('click', () => setView('map'));
-
-  // Sort change
-  if (sortBySelect) {
-    sortBySelect.addEventListener('change', () => {
-      if (currentResults.length > 0) {
-        sortAndRenderResults();
-      }
-    });
-  }
-
-  // Export CSV
-  if (exportCsvBtn) {
-    exportCsvBtn.addEventListener('click', () => {
-      if (!currentCriteria) return;
-      exportCSV();
-    });
-  }
-
-  // Empty state action buttons
-  if (showAllFlatsBtn) {
-    showAllFlatsBtn.addEventListener('click', () => {
-      const belowAvgCb = document.getElementById('onlyBelowAverage');
-      if (belowAvgCb) belowAvgCb.checked = false;
-      if (minDiscountSlider) minDiscountSlider.value = '0';
-      updateSliderLabel(0);
-      performSearch();
-    });
-  }
-
-  if (resetDiscountBtn) {
-    resetDiscountBtn.addEventListener('click', () => {
-      if (minDiscountSlider) minDiscountSlider.value = '0';
-      updateSliderLabel(0);
-      performSearch();
-    });
-  }
-
-  // Form submit
-  if (form) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      performSearch();
-    });
-  }
-
-  // Initial sync of pills
-  syncAllDispositionPills();
 }
 
 // -------------------------------------------------------------
-// Interactive Map Functions
+// Interactive Map (GeoJSON Kraje + Clickable City Markers)
 // -------------------------------------------------------------
 
 function initSelectionMap() {
   const mapEl = document.getElementById('selectionMap');
   if (!mapEl || typeof L === 'undefined') return;
 
-  // Czech Republic Center
   selectionMap = L.map('selectionMap', {
     scrollWheelZoom: true,
     zoomControl: true,
   }).setView([49.8175, 15.4730], 7);
 
-  // CartoDB Voyager tiles (clean, beautiful typography in Czech)
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     maxZoom: 18,
   }).addTo(selectionMap);
 
-  // Add City Markers
+  // Render 14 Czech Kraje GeoJSON layer
+  if (window.CZECH_KRAJE_GEOJSON) {
+    krajeGeoJsonLayer = L.geoJSON(window.CZECH_KRAJE_GEOJSON, {
+      style: getKrajStyle,
+      onEachFeature: (feature, layer) => {
+        const name = feature.properties.name;
+        const avg = formatNumber(feature.properties.avg_price_m2);
+
+        layer.bindTooltip(`<strong>${name}</strong><br/>Průměr: ${avg} Kč/m²`, {
+          className: 'region-tooltip',
+          sticky: true,
+          direction: 'top',
+        });
+
+        layer.on({
+          mouseover: (e) => {
+            const isSel = isRegionSelected(name);
+            e.target.setStyle({
+              weight: 3,
+              color: '#3730a3',
+              fillOpacity: isSel ? 0.6 : 0.25,
+            });
+          },
+          mouseout: (e) => {
+            krajeGeoJsonLayer.resetStyle(e.target);
+            e.target.setStyle(getKrajStyle(feature));
+          },
+          click: () => {
+            toggleLocation(name);
+          },
+        });
+      }
+    }).addTo(selectionMap);
+  }
+
+  // Add City Badges
   CZECH_CITIES.forEach(city => {
     const kczk = Math.round(city.avg / 1000);
+    const isSel = selectedLocations.has(city.name);
+
     const customHtml = `
-      <div class="custom-city-marker" title="${city.name} (${formatNumber(city.avg)} Kč/m²)">
+      <div class="custom-city-marker ${isSel ? 'is-selected' : ''}" id="cityMarker_${city.name}" title="${city.name} (${formatNumber(city.avg)} Kč/m²)">
         <span>${city.name}</span>
         <span class="price-sub">${kczk}k</span>
       </div>
@@ -280,23 +285,25 @@ function initSelectionMap() {
     const cityIcon = L.divIcon({
       html: customHtml,
       className: '',
-      iconSize: [80, 24],
-      iconAnchor: [40, 12]
+      iconSize: [85, 24],
+      iconAnchor: [42, 12]
     });
 
     const marker = L.marker([city.lat, city.lng], { icon: cityIcon }).addTo(selectionMap);
 
-    marker.on('click', () => {
-      selectLocationFromMap(city.name, [city.lat, city.lng]);
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      toggleLocation(city.name);
     });
+
+    cityMarkersMap[city.name] = marker;
   });
 
-  // Map Click Handler: Click anywhere to select nearest location or reverse geocode
+  // Map Click Handler: clicking outside cities/kraje toggles nearest location
   selectionMap.on('click', (e) => {
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
 
-    // Find nearest city from our database
     let closestCity = CZECH_CITIES[0];
     let minDist = 999999;
     CZECH_CITIES.forEach(c => {
@@ -307,41 +314,83 @@ function initSelectionMap() {
       }
     });
 
-    selectLocationFromMap(closestCity.name, [lat, lng]);
+    toggleLocation(closestCity.name);
   });
 
-  // Default selection marker in Prague
-  selectionMarker = L.circleMarker([50.0755, 14.4378], {
-    radius: 10,
-    color: '#4f46e5',
+  updateMapVisuals();
+}
+
+function isRegionSelected(regionName) {
+  if (!regionName) return false;
+  return Array.from(selectedLocations).some(loc => 
+    loc.toLowerCase() === regionName.toLowerCase() ||
+    regionName.toLowerCase().includes(loc.toLowerCase()) ||
+    loc.toLowerCase().includes(regionName.toLowerCase())
+  );
+}
+
+function getKrajStyle(feature) {
+  const name = feature?.properties?.name || '';
+  const isSelected = isRegionSelected(name);
+
+  if (isSelected) {
+    return {
+      fillColor: '#4f46e5',
+      fillOpacity: 0.45,
+      weight: 2.5,
+      color: '#312e81',
+      dashArray: '',
+    };
+  }
+
+  return {
     fillColor: '#6366f1',
-    fillOpacity: 0.8,
-    weight: 3
-  }).addTo(selectionMap);
+    fillOpacity: 0.08,
+    weight: 1.5,
+    color: '#818cf8',
+    dashArray: '3',
+  };
 }
 
-function selectLocationFromMap(locationName, coords) {
-  const locInput = document.getElementById('locationInput');
-  const labelEl = document.getElementById('mapSelectedLabel');
-
-  if (locInput) locInput.value = locationName;
-  if (labelEl) labelEl.textContent = locationName;
-
-  // Move marker & pan map if coords available or found
-  let targetCoords = coords;
-  if (!targetCoords) {
-    const found = CZECH_CITIES.find(c => c.name.toLowerCase() === locationName.toLowerCase());
-    if (found) targetCoords = [found.lat, found.lng];
+function updateMapVisuals() {
+  if (krajeGeoJsonLayer) {
+    krajeGeoJsonLayer.eachLayer(layer => {
+      if (layer.feature) {
+        layer.setStyle(getKrajStyle(layer.feature));
+      }
+    });
   }
 
-  if (targetCoords && selectionMarker && selectionMap) {
-    selectionMarker.setLatLng(targetCoords);
-    selectionMap.setView(targetCoords, Math.max(9, selectionMap.getZoom()));
-  }
+  // Update city markers style
+  CZECH_CITIES.forEach(city => {
+    const isSel = selectedLocations.has(city.name);
+    const kczk = Math.round(city.avg / 1000);
+    const marker = cityMarkersMap[city.name];
 
-  // Trigger search
-  performSearch();
+    if (marker) {
+      const newHtml = `
+        <div class="custom-city-marker ${isSel ? 'is-selected' : ''}" title="${city.name} (${formatNumber(city.avg)} Kč/m²)">
+          ${isSel ? '<i class="fa-solid fa-check text-[10px] text-emerald-300"></i>' : ''}
+          <span>${city.name}</span>
+          <span class="price-sub">${kczk}k</span>
+        </div>
+      `;
+
+      const newIcon = L.divIcon({
+        html: newHtml,
+        className: '',
+        iconSize: [85, 24],
+        iconAnchor: [42, 12]
+      });
+
+      marker.setIcon(newIcon);
+    }
+  });
 }
+
+// -------------------------------------------------------------
+// Results Map View
+// -------------------------------------------------------------
 
 function initResultsMap() {
   const mapEl = document.getElementById('resultsMap');
@@ -367,10 +416,10 @@ function renderResultsOnMap() {
   const validEstates = currentResults.filter(f => f.latitude && f.longitude);
 
   if (validEstates.length === 0) {
-    // If no coordinates in results, center on searched city
-    const matchedCity = CZECH_CITIES.find(c => currentCriteria && c.name.toLowerCase() === currentCriteria.location.toLowerCase());
+    const firstLoc = Array.from(selectedLocations)[0] || 'Praha';
+    const matchedCity = CZECH_CITIES.find(c => c.name.toLowerCase() === firstLoc.toLowerCase());
     if (matchedCity) {
-      resultsMap.setView([matchedCity.lat, matchedCity.lng], 11);
+      resultsMap.setView([matchedCity.lat, matchedCity.lng], 10);
     }
     return;
   }
@@ -382,14 +431,13 @@ function renderResultsOnMap() {
     const lng = flat.longitude;
     latLngs.push([lat, lng]);
 
-    // Color code marker based on discount
-    let bgColor = '#16a34a'; // green
+    let bgColor = '#16a34a';
     let iconClass = 'fa-tag';
     if (flat.discount_percentage >= 20.0) {
-      bgColor = '#dc2626'; // red
+      bgColor = '#dc2626';
       iconClass = 'fa-fire';
     } else if (flat.discount_percentage >= 10.0) {
-      bgColor = '#ea580c'; // orange
+      bgColor = '#ea580c';
       iconClass = 'fa-bolt';
     }
 
@@ -445,11 +493,208 @@ function renderResultsOnMap() {
 }
 
 // -------------------------------------------------------------
-// Search & Filter Logic
+// UI Initialization & Event Handlers
+// -------------------------------------------------------------
+
+function syncDispositionPill(labelEl) {
+  const checkbox = labelEl.querySelector('input[name="disposition"]');
+  const box = labelEl.querySelector('.pill-box');
+  if (!checkbox || !box) return;
+
+  if (checkbox.checked) {
+    box.className = 'pill-box text-center py-2 px-2 rounded-xl border border-indigo-600 bg-indigo-50 text-indigo-700 font-bold text-xs transition shadow-2xs hover:border-indigo-500';
+  } else {
+    box.className = 'pill-box text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition shadow-2xs hover:border-slate-300';
+  }
+}
+
+function syncAllDispositionPills() {
+  document.querySelectorAll('.disp-pill').forEach(syncDispositionPill);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initUI();
+  initSelectionMap();
+  // Auto-search default location (Praha) on initial load
+  performSearch();
+});
+
+function initUI() {
+  const form = document.getElementById('searchForm');
+  const minDiscountSlider = document.getElementById('minDiscount');
+  const discountLabel = document.getElementById('discountLabel');
+  const selectAllDispBtn = document.getElementById('selectAllDisp');
+  const clearDispBtn = document.getElementById('clearDisp');
+  const viewCardsBtn = document.getElementById('viewCardsBtn');
+  const viewTableBtn = document.getElementById('viewTableBtn');
+  const viewMapBtn = document.getElementById('viewMapBtn');
+  const exportCsvBtn = document.getElementById('exportCsvBtn');
+  const sortBySelect = document.getElementById('sortBy');
+  const showAllFlatsBtn = document.getElementById('showAllFlatsBtn');
+  const resetDiscountBtn = document.getElementById('resetDiscountBtn');
+  const toggleMapBtn = document.getElementById('toggleMapBtn');
+  const locationInput = document.getElementById('locationInput');
+  const addLocationBtn = document.getElementById('addLocationBtn');
+  const clearAllLocationsBtn = document.getElementById('clearAllLocationsBtn');
+
+  // Multi-location Tags & Kraje Pills
+  renderSelectedLocations();
+  updateKrajePills();
+
+  // Add Location Input Handler (Enter key or Add button)
+  const handleAddLocation = () => {
+    if (locationInput && locationInput.value.trim()) {
+      const parts = locationInput.value.split(',');
+      parts.forEach(p => addLocation(p.trim()));
+      locationInput.value = '';
+    }
+  };
+
+  if (addLocationBtn) addLocationBtn.addEventListener('click', handleAddLocation);
+  if (locationInput) {
+    locationInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddLocation();
+      }
+    });
+  }
+
+  if (clearAllLocationsBtn) {
+    clearAllLocationsBtn.addEventListener('click', () => {
+      clearAllLocations();
+    });
+  }
+
+  // Quick City Chips (+ Praha, + Brno, etc.)
+  document.querySelectorAll('.loc-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const loc = chip.getAttribute('data-loc');
+      addLocation(loc);
+    });
+  });
+
+  // Slider label live update
+  const updateSliderLabel = (val) => {
+    if (discountLabel) {
+      discountLabel.textContent = `${val}%`;
+    }
+  };
+
+  if (minDiscountSlider) {
+    minDiscountSlider.addEventListener('input', (e) => updateSliderLabel(e.target.value));
+    minDiscountSlider.addEventListener('change', (e) => updateSliderLabel(e.target.value));
+  }
+
+  // Disposition Pills Click Handling
+  document.querySelectorAll('.disp-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      setTimeout(() => syncDispositionPill(pill), 10);
+    });
+  });
+
+  if (selectAllDispBtn) {
+    selectAllDispBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('input[name="disposition"]').forEach(cb => {
+        cb.checked = true;
+      });
+      syncAllDispositionPills();
+    });
+  }
+
+  if (clearDispBtn) {
+    clearDispBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('input[name="disposition"]').forEach(cb => {
+        cb.checked = false;
+      });
+      syncAllDispositionPills();
+    });
+  }
+
+  // Toggle Map
+  if (toggleMapBtn) {
+    toggleMapBtn.addEventListener('click', () => {
+      const mapWrapper = document.getElementById('interactiveMapWrapper');
+      const toggleText = document.getElementById('toggleMapBtnText');
+      if (mapWrapper.classList.contains('hidden')) {
+        mapWrapper.classList.remove('hidden');
+        toggleText.textContent = '▲ Skrýt mapu ČR';
+        setTimeout(() => {
+          if (selectionMap) selectionMap.invalidateSize();
+        }, 150);
+      } else {
+        mapWrapper.classList.add('hidden');
+        toggleText.textContent = '🗺️ Otevřít mapu ČR k výběru';
+      }
+    });
+  }
+
+  // View toggle
+  if (viewCardsBtn) viewCardsBtn.addEventListener('click', () => setView('cards'));
+  if (viewTableBtn) viewTableBtn.addEventListener('click', () => setView('table'));
+  if (viewMapBtn) viewMapBtn.addEventListener('click', () => setView('map'));
+
+  // Sort change
+  if (sortBySelect) {
+    sortBySelect.addEventListener('change', () => {
+      if (currentResults.length > 0) {
+        sortAndRenderResults();
+      }
+    });
+  }
+
+  // Export CSV
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      if (!currentCriteria) return;
+      exportCSV();
+    });
+  }
+
+  // Empty state buttons
+  if (showAllFlatsBtn) {
+    showAllFlatsBtn.addEventListener('click', () => {
+      const belowAvgCb = document.getElementById('onlyBelowAverage');
+      if (belowAvgCb) belowAvgCb.checked = false;
+      if (minDiscountSlider) minDiscountSlider.value = '0';
+      updateSliderLabel(0);
+      performSearch();
+    });
+  }
+
+  if (resetDiscountBtn) {
+    resetDiscountBtn.addEventListener('click', () => {
+      if (minDiscountSlider) minDiscountSlider.value = '0';
+      updateSliderLabel(0);
+      performSearch();
+    });
+  }
+
+  // Main Search Form submit (ONLY TRIGGERS WHEN USER CLICKS BUTTON)
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      // If user typed in the location input without pressing Enter, add it
+      if (locationInput && locationInput.value.trim()) {
+        addLocation(locationInput.value.trim());
+        locationInput.value = '';
+      }
+      performSearch();
+    });
+  }
+
+  syncAllDispositionPills();
+}
+
+// -------------------------------------------------------------
+// Search Execution
 // -------------------------------------------------------------
 
 function getSearchCriteria() {
-  const location = document.getElementById('locationInput')?.value?.trim() || 'Praha';
+  const locList = Array.from(selectedLocations);
+  const primaryLocation = locList.length > 0 ? locList[0] : 'Praha';
   
   const dispositions = Array.from(
     document.querySelectorAll('input[name="disposition"]:checked')
@@ -470,7 +715,8 @@ function getSearchCriteria() {
   const sortBy = document.getElementById('sortBy')?.value || 'discount_desc';
 
   return {
-    location,
+    location: primaryLocation,
+    locations: locList.length > 0 ? locList : ['Praha'],
     dispositions: dispositions.length > 0 ? dispositions : ['1+kk', '2+kk', '3+kk'],
     min_price: minPrice,
     max_price: maxPrice,
@@ -481,11 +727,11 @@ function getSearchCriteria() {
     min_discount_percent: minDiscountPercent,
     custom_benchmark_czk_m2: customBenchmark,
     sort_by: sortBy,
-    limit: 150
+    limit: 200
   };
 }
 
-function startLoadingProgress(locationName) {
+function startLoadingProgress(locationsText) {
   const topBarContainer = document.getElementById('topProgressBarContainer');
   const topBar = document.getElementById('topProgressBar');
   const innerBar = document.getElementById('innerProgressBar');
@@ -504,7 +750,7 @@ function startLoadingProgress(locationName) {
 
   if (searchBtn) searchBtn.disabled = true;
   if (searchBtnIcon) searchBtnIcon.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-  if (searchBtnText) searchBtnText.textContent = `Vyhledávám v lokalitě ${locationName}...`;
+  if (searchBtnText) searchBtnText.textContent = `Vyhledávám (${locationsText})...`;
 
   if (topBarContainer) topBarContainer.classList.remove('hidden');
   if (liveProgressCard) liveProgressCard.classList.remove('hidden');
@@ -586,7 +832,9 @@ async function performSearch() {
   const resultsMapContainer = document.getElementById('resultsMapContainer');
   const statsSection = document.getElementById('statsSection');
 
-  startLoadingProgress(criteria.location);
+  const locSummary = criteria.locations.slice(0, 3).join(', ') + (criteria.locations.length > 3 ? ` (+${criteria.locations.length-3})` : '');
+  startLoadingProgress(locSummary);
+
   if (emptyState) emptyState.classList.add('hidden');
   if (resultsGrid) resultsGrid.innerHTML = '';
   const tbody = document.getElementById('resultsTableBody');
@@ -612,7 +860,6 @@ async function performSearch() {
 
     if (statsSection) statsSection.classList.remove('hidden');
 
-    // Scroll smoothly to stats if user initiated search
     if (Date.now() - searchStartTime > 600 && statsSection) {
       statsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -667,17 +914,16 @@ function sortAndRenderResults() {
     if (currentStats && currentStats.total_scanned > 0) {
       if (emptyTitle) emptyTitle.textContent = `Nalezeno ${currentStats.total_scanned} inzerátů, ale žádný pod průměrem`;
       if (emptyDesc) emptyDesc.textContent = 
-        `V lokalitě ${currentStats.locality_name} bylo zanalyzováno ${currentStats.total_scanned} bytů (tržní průměr ${formatNumber(currentStats.average_price_per_m2)} Kč/m²), ale žádný nesplnil požadovanou slevu.`;
+        `V zadaných lokalitách bylo zanalyzováno ${currentStats.total_scanned} bytů (tržní průměr ${formatNumber(currentStats.average_price_per_m2)} Kč/m²), ale žádný nesplnil požadovanou slevu.`;
     } else {
       if (emptyTitle) emptyTitle.textContent = 'Nebyly nalezeny žádné inzeráty';
-      if (emptyDesc) emptyDesc.textContent = 'Zkuste zadat větší město, upravit cenové limity nebo povolit více dispozic.';
+      if (emptyDesc) emptyDesc.textContent = 'Zkuste vybrat větší kraj, upravit cenové limity nebo povolit více dispozic.';
     }
     return;
   }
 
   if (emptyState) emptyState.classList.add('hidden');
 
-  // Client-side sort
   currentResults.sort((a, b) => {
     if (sortBy === 'discount_desc') return b.discount_percentage - a.discount_percentage;
     if (sortBy === 'savings_desc') return b.difference_czk - a.difference_czk;
@@ -733,7 +979,6 @@ function renderCardsView(listings) {
 
     card.innerHTML = `
       <div>
-        <!-- Image & Badges Header -->
         <div class="relative h-48 sm:h-52 bg-slate-100 overflow-hidden">
           <img
             src="${imgSrc}"
@@ -744,7 +989,6 @@ function renderCardsView(listings) {
           />
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
 
-          <!-- Top Overlay Badges -->
           <div class="absolute top-3 left-3 right-3 flex items-center justify-between">
             ${tierBadgeHtml}
             <span class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-black/60 backdrop-blur-xs text-white border border-white/20">
@@ -752,7 +996,6 @@ function renderCardsView(listings) {
             </span>
           </div>
 
-          <!-- Bottom Overlay: Location -->
           <div class="absolute bottom-2.5 left-3 right-3 text-white">
             <p class="text-xs font-medium truncate flex items-center gap-1.5 drop-shadow-xs">
               <i class="fa-solid fa-location-dot text-indigo-400"></i> ${escapeHtml(flat.locality || flat.city)}
@@ -760,15 +1003,11 @@ function renderCardsView(listings) {
           </div>
         </div>
 
-        <!-- Card Body -->
         <div class="p-4 sm:p-5 space-y-4">
-          
-          <!-- Title -->
           <h3 class="font-bold text-sm sm:text-base text-slate-900 line-clamp-2 leading-snug hover:text-indigo-600 transition" title="${escapeHtml(flat.title)}">
             ${escapeHtml(flat.title)}
           </h3>
 
-          <!-- Pricing Metrics Box -->
           <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/70 space-y-2 text-xs">
             <div class="flex items-center justify-between">
               <span class="text-slate-600 font-medium">Nabídková cena:</span>
@@ -790,11 +1029,9 @@ function renderCardsView(listings) {
               <span class="font-extrabold">${savingsText}</span>
             </div>
           </div>
-
         </div>
       </div>
 
-      <!-- Card Footer -->
       <div class="px-4 pb-4 sm:px-5 sm:pb-5 pt-0 flex items-center justify-between gap-2 border-t border-slate-100">
         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${portal.color}">
           <i class="fa-solid ${portal.icon}"></i> ${portal.name}
@@ -881,7 +1118,6 @@ function setView(view) {
   const resultsTableContainer = document.getElementById('resultsTableContainer');
   const resultsMapContainer = document.getElementById('resultsMapContainer');
 
-  // Reset classes
   [cardsBtn, tableBtn, viewMapBtn].forEach(btn => {
     if (btn) btn.className = 'px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900 cursor-pointer';
   });
@@ -922,7 +1158,7 @@ async function exportCSV() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `vyhodne_byty_${currentCriteria.location || 'cr'}.csv`;
+    a.download = `vyhodne_byty_${currentCriteria.locations.join('_') || 'cr'}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
