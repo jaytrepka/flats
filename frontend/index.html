@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="cs" class="h-full bg-slate-50 text-slate-900">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Czech Real Estate Bargain Finder | Hledač výhodných bytů</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/style.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+            },
+            bargain: {
+              super: '#dc2626',
+              good: '#ea580c',
+              fair: '#16a34a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-full flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-100">
+          <i class="fa-solid fa-house-circle-check text-lg"></i>
+        </div>
+        <div>
+          <span class="font-extrabold text-lg text-slate-900 tracking-tight flex items-center gap-2">
+            Byty<span class="text-indigo-600">Bargain</span>
+            <span class="text-[11px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">v1.0 Live</span>
+          </span>
+          <p class="text-xs text-slate-600 hidden sm:block">Agregátor a cenový srovnávač pro český realitní trh</p>
+        </div>
+      </div>
+
+      <!-- Portal Status Badges -->
+      <div class="hidden md:flex items-center gap-2 text-xs">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-medium">
+          <span class="w-2 h-2 rounded-full bg-red-500"></span> Sreality.cz
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Bezrealitky.cz
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-medium">
+          <span class="w-2 h-2 rounded-full bg-blue-600"></span> Remax-czech.cz
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-medium">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span> Bazoš Reality
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    
+    <!-- Search & Filter Card -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 sm:p-7 mb-8 transition-all">
+      <form id="searchForm" class="space-y-6">
+        
+        <!-- Row 1: Location & Quick Picks -->
+        <div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <label for="locationInput" class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-location-dot text-indigo-600"></i> Lokalita / Město / Městská část
+            </label>
+            <span class="text-xs text-slate-600">Např. Praha, Brno, Praha 4, Plzeň, Ostrava...</span>
+          </div>
+
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </div>
+            <input
+              type="text"
+              id="locationInput"
+              name="location"
+              value="Praha"
+              placeholder="Zadejte město, čtvrť nebo okres..."
+              class="w-full pl-10 pr-4 py-2.5 text-sm sm:text-base rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition font-medium text-slate-900 bg-slate-50/50 focus:bg-white"
+              required
+            />
+          </div>
+
+          <!-- Quick Location Chips -->
+          <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
+            <span class="text-xs font-medium text-slate-600 mr-1">Rychlé volby:</span>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Praha">Praha</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Praha 4">Praha 4</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Brno">Brno</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Plzeň">Plzeň</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Olomouc">Olomouc</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Ostrava">Ostrava</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Hradec Králové">Hradec Králové</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="České Budějovice">České Budějovice</button>
+            <button type="button" class="loc-chip text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 font-medium text-slate-600 border border-slate-200 transition" data-loc="Liberec">Liberec</button>
+          </div>
+        </div>
+
+        <!-- Row 2: Dispositions Multi-Select -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-shapes text-indigo-600"></i> Dispozice bytu
+            </label>
+            <div class="flex items-center gap-2">
+              <button type="button" id="selectAllDisp" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Vybrat vše</button>
+              <span class="text-slate-300">|</span>
+              <button type="button" id="clearDisp" class="text-xs text-slate-600 hover:text-slate-800 font-medium">Zrušit</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2" id="dispContainer">
+            <!-- Disposition checkboxes styled as pills -->
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="1+kk" checked class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                1+kk
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="1+1" checked class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                1+1
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="2+kk" checked class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                2+kk
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="2+1" checked class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                2+1
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="3+kk" checked class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                3+kk
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="3+1" checked class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                3+1
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="4+kk" class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                4+kk
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="4+1" class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                4+1
+              </div>
+            </label>
+            <label class="disp-pill cursor-pointer">
+              <input type="checkbox" name="disposition" value="5+kk" class="hidden peer" />
+              <div class="text-center py-2 px-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold text-xs transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 shadow-2xs hover:border-slate-300">
+                5+ a více
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Row 3: Price & Area Ranges -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Price Range -->
+          <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70">
+            <label class="text-xs font-semibold text-slate-700 block mb-1.5 flex items-center gap-1">
+              <i class="fa-solid fa-coins text-amber-500"></i> Cenové rozpětí (Kč)
+            </label>
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                id="minPrice"
+                placeholder="Min. cena (např. 1 000 000)"
+                step="100000"
+                class="w-1/2 px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:border-indigo-500 outline-none bg-white font-medium"
+              />
+              <span class="text-slate-400 font-medium">—</span>
+              <input
+                type="number"
+                id="maxPrice"
+                placeholder="Max. cena (např. 7 000 000)"
+                step="100000"
+                class="w-1/2 px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:border-indigo-500 outline-none bg-white font-medium"
+              />
+            </div>
+          </div>
+
+          <!-- Area Range -->
+          <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70">
+            <label class="text-xs font-semibold text-slate-700 block mb-1.5 flex items-center gap-1">
+              <i class="fa-solid fa-ruler-combined text-indigo-500"></i> Podlahová plocha (m²)
+            </label>
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                id="minArea"
+                placeholder="Min. m² (např. 35)"
+                class="w-1/2 px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:border-indigo-500 outline-none bg-white font-medium"
+              />
+              <span class="text-slate-400 font-medium">—</span>
+              <input
+                type="number"
+                id="maxArea"
+                placeholder="Max. m² (např. 100)"
+                class="w-1/2 px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:border-indigo-500 outline-none bg-white font-medium"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 4: Portals & Bargain Evaluation Settings -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-2">
+          
+          <!-- Portals Checkboxes (4 cols) -->
+          <div class="lg:col-span-5 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70">
+            <label class="text-xs font-semibold text-slate-700 block mb-2 flex items-center gap-1">
+              <i class="fa-solid fa-layer-group text-indigo-600"></i> Zdroje inzerátů (Portály)
+            </label>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="portal" value="sreality" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                <span class="font-medium text-slate-800">Sreality.cz</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="portal" value="bezrealitky" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                <span class="font-medium text-slate-800">Bezrealitky.cz</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="portal" value="remax" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                <span class="font-medium text-slate-800">RE/MAX Czech</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="portal" value="bazos" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                <span class="font-medium text-slate-800">Bazoš Reality</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Bargain Filter Options (7 cols) -->
+          <div class="lg:col-span-7 bg-gradient-to-br from-indigo-50/60 to-violet-50/60 p-3.5 rounded-xl border border-indigo-100">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                <i class="fa-solid fa-fire text-amber-500"></i> Nastavení cenového srovnávače (Výhodnost)
+              </label>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="onlyBelowAverage" checked class="sr-only peer" />
+                <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                <span class="ml-2 text-xs font-semibold text-slate-700">Jen pod průměrem</span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label for="minDiscount" class="block font-medium text-slate-700 mb-1">
+                  Min. požadovaná sleva: <span id="discountLabel" class="font-bold text-indigo-700">0%</span>
+                </label>
+                <input type="range" id="minDiscount" min="0" max="35" step="5" value="0" class="w-full accent-indigo-600 cursor-pointer" />
+                <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
+                  <span>Všechny pod průměrem</span>
+                  <span>-15%</span>
+                  <span>-30%+</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="customBenchmark" class="block font-medium text-slate-700 mb-1">
+                  Vlastní cíl Kč/m² (volitelné):
+                </label>
+                <input
+                  type="number"
+                  id="customBenchmark"
+                  placeholder="Automaticky dle trhu"
+                  step="5000"
+                  class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs focus:border-indigo-500 outline-none bg-white font-medium"
+                />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Row 5: Action Button & Sort -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-100">
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <span class="text-xs font-medium text-slate-600 whitespace-nowrap">Řadit výsledky:</span>
+            <select id="sortBy" class="px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-700 focus:border-indigo-500 outline-none w-full sm:w-auto">
+              <option value="discount_desc">🔥 Největší sleva (% oproti průměru)</option>
+              <option value="savings_desc">💰 Nejvíce ušetřeno (Kč pod průměrem)</option>
+              <option value="price_m2_asc">📉 Nejnižší cena za m² (Kč/m²)</option>
+              <option value="price_asc">🏷️ Nejnižší celková cena (Kč)</option>
+              <option value="price_desc">🏷️ Nejvyšší celková cena (Kč)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="submit"
+              id="searchBtn"
+              class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            >
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <span>Vyhledat výhodné nabídky</span>
+            </button>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- Summary KPI Stats Dashboard -->
+    <div id="statsSection" class="hidden mb-8 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <span>Analýza trhu pro lokalitu</span>
+            <span id="statLocalityName" class="text-indigo-600">Praha</span>
+          </h2>
+          <span id="benchmarkSourceBadge" class="text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full">
+            Dynamický průměr
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs">
+          <!-- View Toggle -->
+          <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+            <button id="viewCardsBtn" class="px-3 py-1 rounded-md bg-white text-slate-900 font-semibold shadow-2xs">
+              <i class="fa-solid fa-grip mr-1"></i> Karty
+            </button>
+            <button id="viewTableBtn" class="px-3 py-1 rounded-md text-slate-600 font-medium hover:text-slate-900">
+              <i class="fa-solid fa-table-list mr-1"></i> Tabulka
+            </button>
+          </div>
+
+          <!-- Export CSV -->
+          <button id="exportCsvBtn" class="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 font-medium text-slate-700 flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-file-csv text-emerald-600"></i> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Widgets Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+          <span class="text-[11px] font-semibold text-slate-600 uppercase tracking-wider block">Tržní průměr m²</span>
+          <div class="mt-1 flex items-baseline">
+            <span id="statAvgM2" class="text-xl font-extrabold text-slate-900">0</span>
+            <span class="text-xs text-slate-600 ml-1 font-medium">Kč/m²</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+          <span class="text-[11px] font-semibold text-slate-600 uppercase tracking-wider block">Tržní medián m²</span>
+          <div class="mt-1 flex items-baseline">
+            <span id="statMedianM2" class="text-xl font-extrabold text-slate-900">0</span>
+            <span class="text-xs text-slate-600 ml-1 font-medium">Kč/m²</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+          <span class="text-[11px] font-semibold text-slate-600 uppercase tracking-wider block">Skenováno inzerátů</span>
+          <div class="mt-1 flex items-baseline">
+            <span id="statTotalScanned" class="text-xl font-extrabold text-slate-900">0</span>
+            <span class="text-xs text-slate-600 ml-1 font-medium">celkem</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 shadow-2xs">
+          <span class="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider block">Výhodné nabídky</span>
+          <div class="mt-1 flex items-baseline">
+            <span id="statBargainsCount" class="text-xl font-extrabold text-emerald-600">0</span>
+            <span class="text-xs text-emerald-700 ml-1 font-medium">pod průměrem</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-amber-200 bg-amber-50/20 shadow-2xs col-span-2 sm:col-span-1">
+          <span class="text-[11px] font-semibold text-amber-800 uppercase tracking-wider block">Max. nalezená úspora</span>
+          <div class="mt-1 flex items-baseline">
+            <span id="statMaxSavings" class="text-xl font-extrabold text-amber-600">0</span>
+            <span class="text-xs text-amber-700 ml-1 font-medium">Kč</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="hidden py-16 text-center space-y-4">
+      <div class="inline-block relative">
+        <div class="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin"></div>
+      </div>
+      <div class="space-y-1">
+        <h3 class="text-base font-bold text-slate-800">Prohledávám české realitní portály...</h3>
+        <p class="text-xs text-slate-600">Sreality.cz • Bezrealitky.cz • Remax • Bazoš Reality</p>
+      </div>
+    </div>
+
+    <!-- Empty State / Error Banner -->
+    <div id="emptyState" class="hidden py-16 text-center bg-white rounded-2xl border border-slate-200 p-8 space-y-3">
+      <div class="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-lg">
+        <i class="fa-solid fa-filter-circle-xmark"></i>
+      </div>
+      <h3 class="text-base font-bold text-slate-800">Nebyly nalezeny žádné byty odpovídající zadaným kritériím</h3>
+      <p class="text-xs text-slate-600 max-w-md mx-auto">
+        Zkuste rozšířit cenový limit, povolit více dispozic nebo snížit požadované procento slevy.
+      </p>
+    </div>
+
+    <!-- Results Cards Grid -->
+    <div id="resultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <!-- Injected by app.js -->
+    </div>
+
+    <!-- Results Table View -->
+    <div id="resultsTableContainer" class="hidden bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-700">
+          <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
+            <tr>
+              <th class="px-4 py-3">Název & Foto</th>
+              <th class="px-4 py-3">Dispozice</th>
+              <th class="px-4 py-3">Plocha</th>
+              <th class="px-4 py-3">Nabídková cena</th>
+              <th class="px-4 py-3">Cena / m²</th>
+              <th class="px-4 py-3">Očekávaná tržní hodnota</th>
+              <th class="px-4 py-3 text-emerald-700 font-bold">Úspora / Sleva</th>
+              <th class="px-4 py-3">Portál</th>
+              <th class="px-4 py-3 text-right">Akce</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTableBody" class="divide-y divide-slate-100">
+            <!-- Injected by app.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-slate-800">BytyBargain</span>
+        <span>•</span>
+        <span>Výpočet úspory vychází z dynamického tržního průměru lokality a regionální cenové mapy ČR.</span>
+      </div>
+      <div>
+        <span>Všechna data jsou čerpána v reálném čase z veřejných zdrojů.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/static/app.js"></script>
+</body>
+</html>
