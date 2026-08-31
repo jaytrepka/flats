@@ -40,7 +40,10 @@ SCRAPERS = {
     "bazos": BazosScraper(),
 }
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+PUBLIC_DIR = ROOT_DIR / "public"
+FRONTEND_DIR = ROOT_DIR / "frontend"
+STATIC_DIR = PUBLIC_DIR if PUBLIC_DIR.exists() else FRONTEND_DIR
 
 
 async def run_scraper_safe(scraper, criteria: SearchCriteria) -> List[FlatListing]:
@@ -148,10 +151,18 @@ async def export_csv(criteria: SearchCriteria):
     )
 
 
-# Serve frontend static assets
-if FRONTEND_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+# Serve frontend static assets locally
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/")
     async def serve_index():
-        return FileResponse(str(FRONTEND_DIR / "index.html"))
+        return FileResponse(str(STATIC_DIR / "index.html"))
+
+    @app.get("/app.js")
+    async def serve_app_js():
+        return FileResponse(str(STATIC_DIR / "app.js"))
+
+    @app.get("/style.css")
+    async def serve_style_css():
+        return FileResponse(str(STATIC_DIR / "style.css"))
