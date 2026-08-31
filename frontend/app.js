@@ -1,9 +1,12 @@
-// BytyBargain - Interactive Frontend Application
+// BytyBargain - Interactive Frontend Application with Live Progress Bar & Status
 
 let currentResults = [];
 let currentStats = null;
 let currentCriteria = null;
 let activeView = 'cards'; // 'cards' | 'table'
+let progressInterval = null;
+let timerInterval = null;
+let searchStartTime = 0;
 
 // Format CZK currency
 function formatCZK(amount) {
@@ -26,7 +29,7 @@ const PORTAL_META = {
 
 document.addEventListener('DOMContentLoaded', () => {
   initUI();
-  // Auto-search default city (Praha) on first load
+  // Auto-search default city (Praha) on initial load
   performSearch();
 });
 
@@ -40,6 +43,8 @@ function initUI() {
   const viewTableBtn = document.getElementById('viewTableBtn');
   const exportCsvBtn = document.getElementById('exportCsvBtn');
   const sortBySelect = document.getElementById('sortBy');
+  const showAllFlatsBtn = document.getElementById('showAllFlatsBtn');
+  const resetDiscountBtn = document.getElementById('resetDiscountBtn');
 
   // Slider label live update
   minDiscountSlider.addEventListener('input', (e) => {
@@ -80,6 +85,20 @@ function initUI() {
     exportCSV();
   });
 
+  // Empty state action buttons
+  showAllFlatsBtn.addEventListener('click', () => {
+    document.getElementById('onlyBelowAverage').checked = false;
+    document.getElementById('minDiscount').value = '0';
+    document.getElementById('discountLabel').textContent = '0%';
+    performSearch();
+  });
+
+  resetDiscountBtn.addEventListener('click', () => {
+    document.getElementById('minDiscount').value = '0';
+    document.getElementById('discountLabel').textContent = '0%';
+    performSearch();
+  });
+
   // Form submit
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -110,7 +129,7 @@ function getSearchCriteria() {
 
   return {
     location,
-    dispositions,
+    dispositions: dispositions.length > 0 ? dispositions : ['1+kk', '2+kk', '3+kk'],
     min_price: minPrice,
     max_price: maxPrice,
     min_area: minArea,
@@ -120,25 +139,113 @@ function getSearchCriteria() {
     min_discount_percent: minDiscountPercent,
     custom_benchmark_czk_m2: customBenchmark,
     sort_by: sortBy,
-    limit: 120
+    limit: 150
   };
+}
+
+function startLoadingProgress(locationName) {
+  const topBarContainer = document.getElementById('topProgressBarContainer');
+  const topBar = document.getElementById('topProgressBar');
+  const innerBar = document.getElementById('innerProgressBar');
+  const liveProgressCard = document.getElementById('liveProgressCard');
+  const searchBtn = document.getElementById('searchBtn');
+  const searchBtnIcon = document.getElementById('searchBtnIcon');
+  const searchBtnText = document.getElementById('searchBtnText');
+  const timerSeconds = document.getElementById('timerSeconds');
+
+  // Reset steps
+  ['stepSreality', 'stepBezrealitky', 'stepRemax', 'stepBazos'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.className = 'flex items-center gap-2 p-2 rounded-lg bg-slate-50 text-slate-700 border border-slate-100';
+    }
+  });
+
+  // UI state: loading
+  searchBtn.disabled = true;
+  searchBtnIcon.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+  searchBtnText.textContent = `Vyhledávám v lokalitě ${locationName}...`;
+
+  topBarContainer.classList.remove('hidden');
+  liveProgressCard.classList.remove('hidden');
+
+  let currentPercent = 10;
+  topBar.style.width = '10%';
+  innerBar.style.width = '10%';
+
+  searchStartTime = Date.now();
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const elapsed = ((Date.now() - searchStartTime) / 1000).toFixed(1);
+    timerSeconds.textContent = `${elapsed}s`;
+  }, 100);
+
+  if (progressInterval) clearInterval(progressInterval);
+  progressInterval = setInterval(() => {
+    if (currentPercent < 88) {
+      currentPercent += Math.random() * 12;
+      topBar.style.width = `${Math.min(88, currentPercent)}%`;
+      innerBar.style.width = `${Math.min(88, currentPercent)}%`;
+    }
+
+    const elapsedMs = Date.now() - searchStartTime;
+    if (elapsedMs > 800) markStepDone('stepSreality', 'stepSrealityIcon');
+    if (elapsedMs > 1400) markStepDone('stepBezrealitky', 'stepBezrealitkyIcon');
+    if (elapsedMs > 2000) markStepDone('stepRemax', 'stepRemaxIcon');
+    if (elapsedMs > 2600) markStepDone('stepBazos', 'stepBazosIcon');
+  }, 350);
+}
+
+function markStepDone(stepId, iconId) {
+  const el = document.getElementById(stepId);
+  const icon = document.getElementById(iconId);
+  if (el && icon) {
+    el.className = 'flex items-center gap-2 p-2 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200';
+    icon.className = 'fa-solid fa-check text-emerald-600';
+  }
+}
+
+function stopLoadingProgress() {
+  const topBarContainer = document.getElementById('topProgressBarContainer');
+  const topBar = document.getElementById('topProgressBar');
+  const innerBar = document.getElementById('innerProgressBar');
+  const liveProgressCard = document.getElementById('liveProgressCard');
+  const searchBtn = document.getElementById('searchBtn');
+  const searchBtnIcon = document.getElementById('searchBtnIcon');
+  const searchBtnText = document.getElementById('searchBtnText');
+
+  if (progressInterval) clearInterval(progressInterval);
+  if (timerInterval) clearInterval(timerInterval);
+
+  topBar.style.width = '100%';
+  innerBar.style.width = '100%';
+
+  ['stepSreality', 'stepBezrealitky', 'stepRemax', 'stepBazos'].forEach(id => {
+    markStepDone(id, `${id}Icon`);
+  });
+
+  setTimeout(() => {
+    topBarContainer.classList.add('hidden');
+    liveProgressCard.classList.add('hidden');
+    topBar.style.width = '0%';
+    innerBar.style.width = '0%';
+  }, 450);
+
+  searchBtn.disabled = false;
+  searchBtnIcon.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
+  searchBtnText.textContent = 'Vyhledat výhodné nabídky';
 }
 
 async function performSearch() {
   const criteria = getSearchCriteria();
   currentCriteria = criteria;
 
-  const searchBtn = document.getElementById('searchBtn');
-  const loadingState = document.getElementById('loadingState');
   const emptyState = document.getElementById('emptyState');
   const resultsGrid = document.getElementById('resultsGrid');
   const resultsTableContainer = document.getElementById('resultsTableContainer');
   const statsSection = document.getElementById('statsSection');
 
-  // UI state: loading
-  searchBtn.disabled = true;
-  searchBtn.classList.add('opacity-75', 'cursor-wait');
-  loadingState.classList.remove('hidden');
+  startLoadingProgress(criteria.location);
   emptyState.classList.add('hidden');
   resultsGrid.innerHTML = '';
   document.getElementById('resultsTableBody').innerHTML = '';
@@ -151,7 +258,7 @@ async function performSearch() {
     });
 
     if (!response.ok) {
-      throw new Error(`Server returned HTTP ${response.status}`);
+      throw new Error(`Server vrátil chybu HTTP ${response.status}`);
     }
 
     const data = await response.json();
@@ -162,15 +269,18 @@ async function performSearch() {
     sortAndRenderResults();
 
     statsSection.classList.remove('hidden');
+
+    // Scroll smoothly to results if user initiated search
+    if (Date.now() - searchStartTime > 600) {
+      statsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   } catch (error) {
     console.error('Search error:', error);
     emptyState.classList.remove('hidden');
-    emptyState.querySelector('h3').textContent = 'Chyba při vyhledávání nabídek';
-    emptyState.querySelector('p').textContent = 'Nepodařilo se načíst data ze serveru. Zkuste to prosím znovu.';
+    document.getElementById('emptyTitle').textContent = 'Chyba při vyhledávání nabídek';
+    document.getElementById('emptyDescription').textContent = `Nepodařilo se načíst data ze serveru (${error.message}). Zkuste to prosím za okamžik znovu.`;
   } finally {
-    searchBtn.disabled = false;
-    searchBtn.classList.remove('opacity-75', 'cursor-wait');
-    loadingState.classList.add('hidden');
+    stopLoadingProgress();
   }
 }
 
@@ -200,12 +310,21 @@ function sortAndRenderResults() {
     emptyState.classList.remove('hidden');
     resultsGrid.classList.add('hidden');
     resultsTableContainer.classList.add('hidden');
+
+    if (currentStats && currentStats.total_scanned > 0) {
+      document.getElementById('emptyTitle').textContent = `Nalezeno ${currentStats.total_scanned} inzerátů, ale žádný pod průměrem`;
+      document.getElementById('emptyDescription').textContent = 
+        `V lokalitě ${currentStats.locality_name} bylo zanalyzováno ${currentStats.total_scanned} bytů (tržní průměr ${formatNumber(currentStats.average_price_per_m2)} Kč/m²), ale žádný nesplnil požadovanou slevu.`;
+    } else {
+      document.getElementById('emptyTitle').textContent = 'Nebyly nalezeny žádné inzeráty';
+      document.getElementById('emptyDescription').textContent = 'Zkuste zadat větší město, upravit cenové limity nebo povolit více dispozic.';
+    }
     return;
   }
 
   emptyState.classList.add('hidden');
 
-  // Client-side sort if criteria change
+  // Client-side sort
   currentResults.sort((a, b) => {
     if (sortBy === 'discount_desc') return b.discount_percentage - a.discount_percentage;
     if (sortBy === 'savings_desc') return b.difference_czk - a.difference_czk;
@@ -347,7 +466,7 @@ function renderTableView(listings) {
   const tbody = document.getElementById('resultsTableBody');
   tbody.innerHTML = '';
 
-  listings.forEach((flat, idx) => {
+  listings.forEach((flat) => {
     const portal = PORTAL_META[flat.portal] || { name: flat.portal, color: 'bg-slate-100 text-slate-700' };
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-slate-50/80 transition';

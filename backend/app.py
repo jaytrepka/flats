@@ -43,6 +43,18 @@ SCRAPERS = {
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 
+async def run_scraper_safe(scraper, criteria: SearchCriteria) -> List[FlatListing]:
+    """Execute scraper with strict timeout so slow portals don't block the search."""
+    try:
+        return await asyncio.wait_for(scraper.search(criteria), timeout=8.0)
+    except asyncio.TimeoutError:
+        logger.warning(f"Scraper '{scraper.portal_name}' timed out after 8s")
+        return []
+    except Exception as e:
+        logger.error(f"Scraper '{scraper.portal_name}' error: {e}")
+        return []
+
+
 @app.post("/api/search", response_model=SearchResponse)
 async def search_flats(criteria: SearchCriteria) -> SearchResponse:
     """Execute concurrent search across all selected Czech real estate portals."""
@@ -57,16 +69,14 @@ async def search_flats(criteria: SearchCriteria) -> SearchResponse:
     if not selected_scrapers:
         selected_scrapers = list(SCRAPERS.values())
 
-    # Execute all scraper tasks concurrently
-    tasks = [scraper.search(criteria) for scraper in selected_scrapers]
+    # Execute all scraper tasks concurrently with timeout guard
+    tasks = [run_scraper_safe(scraper, criteria) for scraper in selected_scrapers]
     results_nested = await asyncio.gather(*tasks, return_exceptions=True)
 
     all_listings: List[FlatListing] = []
     for idx, res in enumerate(results_nested):
         scraper_name = selected_scrapers[idx].portal_name
-        if isinstance(res, Exception):
-            logger.error(f"Scraper '{scraper_name}' failed with error: {res}")
-        elif isinstance(res, list):
+        if isinstance(res, list):
             logger.info(f"Scraper '{scraper_name}' returned {len(res)} listings")
             all_listings.extend(res)
 
@@ -102,13 +112,11 @@ async def get_benchmarks():
 @app.post("/api/export/csv")
 async def export_csv(criteria: SearchCriteria):
     """Export search results to CSV format."""
-    # Perform search
     resp = await search_flats(criteria)
     
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Write header
     writer.writerow([
         "ID", "Název", "Portál", "Dispozice", "Plocha (m²)", "Cena (Kč)",
         "Cena za m² (Kč/m²)", "Tržní průměr m² (Kč/m²)", "Očekávaná cena (Kč)",
