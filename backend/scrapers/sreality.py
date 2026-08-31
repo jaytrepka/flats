@@ -34,24 +34,23 @@ class SrealityScraper(BaseScraper):
         listings: List[FlatListing] = []
         
         # Build search URL
-        loc_slug = normalize_string(criteria.location).replace(" ", "-")
-        if not loc_slug:
-            loc_slug = "ceska-republika"
-
-        url = f"{self.BASE_URL}/hledani/prodej/byty/{loc_slug}"
+        url = f"{self.BASE_URL}/hledani/prodej/byty"
         params = {}
+
+        if criteria.location and criteria.location.lower() not in ["ceska republika", "cr", "čr", "cesko", "česko"]:
+            params["region"] = criteria.location
 
         # Dispositions
         if criteria.dispositions:
             disp_slugs = []
             for d in criteria.dispositions:
                 norm_d = normalize_disposition(d)
-                if norm_d in self.DISPOSITION_MAP:
-                    disp_slugs.append(self.DISPOSITION_MAP[norm_d])
-                elif d.lower() in self.DISPOSITION_MAP:
-                    disp_slugs.append(self.DISPOSITION_MAP[d.lower()])
+                if norm_d:
+                    disp_slugs.append(norm_d)
+                elif d.lower():
+                    disp_slugs.append(d.lower())
             if disp_slugs:
-                params["velikost"] = ",".join(disp_slugs)
+                params["velikost"] = ",".join(dict.fromkeys(disp_slugs))
 
         if criteria.min_price:
             params["cena-od"] = str(criteria.min_price)
@@ -151,11 +150,15 @@ class SrealityScraper(BaseScraper):
             
             main_image = images[0] if images else None
 
-            # Detail URL construction
-            city_seo = loc_data.get("citySeoName") or "praha"
-            city_part_seo = loc_data.get("cityPartSeoName") or city_seo
-            disp_seo = disp.replace("+", "-")
-            url = f"{self.BASE_URL}/detail/prodej/byt/{disp_seo}/{city_seo}/{city_part_seo}/{estate_id}"
+            # Detail URL construction (Sreality requires '+' in disposition e.g. '3+kk' and joined SEO locality slug)
+            city_seo = loc_data.get("citySeoName") or loc_data.get("municipalitySeoName") or "ceska-republika"
+            city_part_seo = loc_data.get("cityPartSeoName")
+            street_seo = loc_data.get("streetSeoName")
+
+            seo_parts = [p for p in [city_seo, city_part_seo, street_seo] if p]
+            locality_seo_slug = "-".join(dict.fromkeys(seo_parts)) or city_seo
+            disp_seo = disp if disp else "1+kk"
+            url = f"{self.BASE_URL}/detail/prodej/byt/{disp_seo}/{locality_seo_slug}/{estate_id}"
 
             return FlatListing(
                 id=f"sreality_{estate_id}",
