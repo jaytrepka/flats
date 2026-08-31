@@ -1,10 +1,80 @@
+import re
 import statistics
 import logging
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from .models import SearchCriteria, FlatListing, PriceStats, SearchResponse
 from .benchmarks import get_benchmark_price_per_m2
 
 logger = logging.getLogger(__name__)
+
+
+def parse_czk_amount(val: str) -> float:
+    """Extract numeric CZK digits from formatted text (e.g. '11.275.385 Kč' -> 11275385.0)."""
+    digits = re.sub(r'[^\d]', '', val)
+    return float(digits) if digits else 0.0
+
+
+def detect_hidden_costs_and_caveats(flat: FlatListing) -> Tuple[float, List[str], bool, bool]:
+    """
+    Detect unpaid annuities ('anuita'), partial shares ('podíl 1/2'), 
+    auctions ('dražba'), and lifetime rights ('věcné břemeno dožití').
+    """
+    title = flat.title or ""
+    desc = flat.description or ""
+    extra = flat.extra_details or {}
+    
+    full_text = f"{title} {desc}".lower()
+    caveats: List[str] = []
+    annuity = 0.0
+    is_partial_share = False
+    is_auction = False
+
+    # Check structured extra_details first (e.g. Sreality API annuity field)
+    raw_annuity = extra.get("annuity") or extra.get("raw_annuity")
+    if raw_annuity and isinstance(raw_annuity, (int, float)) and raw_annuity >= 100000:
+        annuity = float(raw_annuity)
+
+    # 1. Unpaid Annuity (Družstevní byty / Finep / převod podílu s doplatkem anuity)
+    if annuity == 0.0:
+        # Finep & standard cooperative listing pattern: 'Nesplacená část (anuita): 11.275.385 Kč' or 'doplatit anuitu ve výši...'
+        finep_match = re.search(
+            r'(?:nesplacen[áa]\s+část\s*\(anuita\)|nesplacen[áa]\s+anuita|doplatit\s+anuitu|zbývající\s+anuit[au]|anuita\s*činí|anuita\s*je|anuita\s*:)\s*([0-9\s\.\,]{4,18})\s*(?:kč|czk)?',
+            full_text,
+        )
+        if finep_match:
+            amt = parse_czk_amount(finep_match.group(1))
+            if 150000 <= amt <= 35000000:
+                annuity = amt
+
+    if annuity == 0.0:
+        # General pattern: 'anuita 2 500 000 Kč' or 'anuitu ve výši 1 800 000 Kč'
+        annuity_matches = re.findall(
+            r'(?:anuita|anuitu|anuitou)\s*(?:ve\s+výši|činí|je|:|\-)?\s*([0-9\s\.\,]{4,18})\s*(?:kč|czk)?',
+            full_text,
+        )
+        for m in annuity_matches:
+            amt = parse_czk_amount(m)
+            if 150000 <= amt <= 35000000:
+                annuity = max(annuity, amt)
+
+    if annuity > 0:
+        caveats.append(f"Anuita +{int(annuity):,} Kč".replace(",", " "))
+
+    # 2. Fractional Spoluvlastnický Podíl (1/2, 1/3, 1/4, etc.)
+    if re.search(r'(?:podíl\s+[1-9]\/[1-9]|ideální\s+polovin|ideální\s+podíl|spoluvlastnick[ýé]\s+podíl|prodej\s+podílu|1\/[2-8]\s+bytu|poloviční\s+podíl)', full_text):
+        is_partial_share = True
+        caveats.append("Spoluvlastnický podíl")
+
+    # 3. Auctions & Execution starting bids (Dražba, Vyvolávací cena)
+    if re.search(r'(?:dražb[ay]|vyvolávací\s+cena|nedobrovoln[áé]\s+dražb|exekuční\s+dražb|dražební\s+jednání)', full_text):
+        is_auction = True
+        caveats.append("Dražba / Vyvolávací cena")
+
+    # 4. Lifetime Encumbrance (Věcné břemeno dožití)
+    if re.search(r'(?:břemen[oa-z]*\s+dožití|doživotní\s+užívání|břemeno\s+bydlení|právo\s+dožití|věcné\s+břemeno)', full_text):
+        caveats.append("Věcné břemeno dožití")
+
+    return annuity, caveats, is_partial_share, is_auction
 
 
 def calculate_pricing_and_filter(
@@ -12,16 +82,33 @@ def calculate_pricing_and_filter(
 ) -> SearchResponse:
     total_scanned = len(listings)
     
-    # 1. Determine baseline price per m2
+    # 1. Pre-process listings: Detect Annuities and Caveats, recalculate Real Total Price
+    for flat in listings:
+        annuity, caveats, is_share, is_auc = detect_hidden_costs_and_caveats(flat)
+        flat.unpaid_annuity_czk = annuity
+        flat.caveat_flags = caveats
+        flat.is_partial_share = is_share
+        flat.is_auction = is_auc
+
+        if criteria.include_annuity_in_price and annuity > 0:
+            flat.advertised_price_czk = flat.price_czk
+            flat.price_czk = flat.price_czk + annuity
+            if flat.area_m2 > 0:
+                flat.price_per_m2 = round(flat.price_czk / flat.area_m2, 0)
+
+    # 2. Determine baseline price per m2
     regional_benchmark = get_benchmark_price_per_m2(criteria.location)
     benchmark_source = "Regionální cenová mapa ČR"
     
-    # Collect valid price_per_m2 values
-    valid_prices_m2 = [f.price_per_m2 for f in listings if f.price_per_m2 > 10000 and f.price_per_m2 < 500000]
+    # Collect valid price_per_m2 values (excluding partial share distortions)
+    valid_prices_m2 = [
+        f.price_per_m2 for f in listings 
+        if f.price_per_m2 > 10000 and f.price_per_m2 < 500000 and not f.is_partial_share
+    ]
     
     disposition_stats: Dict[str, List[float]] = {}
     for f in listings:
-        if f.price_per_m2 > 10000 and f.price_per_m2 < 500000:
+        if f.price_per_m2 > 10000 and f.price_per_m2 < 500000 and not f.is_partial_share:
             disposition_stats.setdefault(f.disposition, []).append(f.price_per_m2)
 
     disp_averages: Dict[str, float] = {}
@@ -33,16 +120,11 @@ def calculate_pricing_and_filter(
         base_price_m2 = criteria.custom_benchmark_czk_m2
         benchmark_source = f"Uživatelská cílová cena ({int(base_price_m2):,} Kč/m²)"
     elif len(valid_prices_m2) >= 4:
-        # Calculate trimmed mean & median
         sorted_p = sorted(valid_prices_m2)
-        # Trim top and bottom 10%
         trim_count = max(1, int(len(sorted_p) * 0.1))
         trimmed = sorted_p[trim_count:-trim_count] if len(sorted_p) > 4 else sorted_p
         
         dynamic_median = statistics.median(trimmed)
-        dynamic_mean = statistics.mean(trimmed)
-        
-        # Weighted combination: 80% dynamic median + 20% regional benchmark for stability
         base_price_m2 = round(0.8 * dynamic_median + 0.2 * regional_benchmark, 0)
         benchmark_source = f"Dynamický tržní průměr ({len(valid_prices_m2)} nabídek v lokalitě)"
     elif len(valid_prices_m2) > 0:
@@ -51,16 +133,16 @@ def calculate_pricing_and_filter(
         benchmark_source = f"Kombinovaný průměr trhu a cenové mapy ({len(valid_prices_m2)} nabídek)"
     else:
         base_price_m2 = regional_benchmark
-        benchmark_source = f"Cenová mapa pro lokalitu '{criteria.location}'"
+        benchmark_source = f"Cenová mapa pro vybranou lokalitu"
 
-    # 2. Score and calculate savings for every flat
+    # 3. Score and calculate savings for every flat
     enriched_listings: List[FlatListing] = []
     portal_counts: Dict[str, int] = {}
     
     for flat in listings:
         portal_counts[flat.portal] = portal_counts.get(flat.portal, 0) + 1
         
-        # Use disposition-specific baseline if we have enough samples for it
+        # Use disposition-specific baseline if available
         if flat.disposition in disp_averages and len(disposition_stats.get(flat.disposition, [])) >= 3:
             loc_baseline = round(0.7 * disp_averages[flat.disposition] + 0.3 * base_price_m2, 0)
         else:
@@ -89,16 +171,26 @@ def calculate_pricing_and_filter(
 
         enriched_listings.append(flat)
 
-    # 3. Filtering
+    # 4. Filtering (including caveat filters)
     filtered_listings: List[FlatListing] = []
     for flat in enriched_listings:
+        # Filter out partial shares if requested
+        if criteria.filter_partial_shares and flat.is_partial_share:
+            continue
+            
+        # Filter out auctions / execution starting bids if requested
+        if criteria.filter_auctions and flat.is_auction:
+            continue
+
         if criteria.only_below_average and not flat.is_bargain:
             continue
+            
         if criteria.min_discount_percent > 0 and flat.discount_percentage < criteria.min_discount_percent:
             continue
+
         filtered_listings.append(flat)
 
-    # 4. Sorting
+    # 5. Sorting
     if criteria.sort_by == "discount_desc":
         filtered_listings.sort(key=lambda x: x.discount_percentage, reverse=True)
     elif criteria.sort_by == "savings_desc":
@@ -113,9 +205,9 @@ def calculate_pricing_and_filter(
     # Limit results
     final_listings = filtered_listings[: criteria.limit]
 
-    # 5. Summary Statistics
-    total_bargains = sum(1 for f in enriched_listings if f.is_bargain)
-    max_savings = max([f.difference_czk for f in enriched_listings], default=0.0)
+    # 6. Summary Statistics
+    total_bargains = sum(1 for f in filtered_listings if f.is_bargain)
+    max_savings = max([f.difference_czk for f in filtered_listings], default=0.0)
     
     avg_price_m2 = round(statistics.mean(valid_prices_m2), 0) if valid_prices_m2 else base_price_m2
     median_price_m2 = round(statistics.median(valid_prices_m2), 0) if valid_prices_m2 else base_price_m2

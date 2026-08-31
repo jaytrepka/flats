@@ -401,6 +401,39 @@
             </div>
           </div>
 
+          <!-- Smart Real Price & Caveat Options -->
+          <div class="lg:col-span-12 bg-slate-50/70 p-3 rounded-xl border border-slate-200/70">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved text-indigo-600"></i> Detekce skrytých doplatků a filtrace nereálných cen
+              </label>
+              <span class="text-[11px] text-slate-500 hidden sm:inline">Chrání před zdánlivě levnými nabídkami</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border border-slate-200 hover:border-indigo-300 transition">
+                <input type="checkbox" id="includeAnnuity" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                <div>
+                  <span class="font-bold text-slate-900 block text-xs">Přičítat anuitu k celkové ceně</span>
+                  <span class="text-[10px] text-slate-500">Odhalí skryté doplatky družstvu (např. Finep)</span>
+                </div>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border border-slate-200 hover:border-indigo-300 transition">
+                <input type="checkbox" id="filterPartialShares" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                <div>
+                  <span class="font-bold text-slate-900 block text-xs">Skrýt podíly (1/2, 1/4 apod.)</span>
+                  <span class="text-[10px] text-slate-500">Ignoruje nabídky pouze na část nemovitosti</span>
+                </div>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border border-slate-200 hover:border-indigo-300 transition">
+                <input type="checkbox" id="filterAuctions" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                <div>
+                  <span class="font-bold text-slate-900 block text-xs">Skrýt dražby a exekuce</span>
+                  <span class="text-[10px] text-slate-500">Ignoruje vyvolávací ceny aukcí a dražeb</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
         </div>
 
         <!-- Row 5: Action Button & Sort -->

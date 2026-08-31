@@ -714,6 +714,10 @@ function getSearchCriteria() {
   const customBenchmark = document.getElementById('customBenchmark')?.value ? parseFloat(document.getElementById('customBenchmark').value) : null;
   const sortBy = document.getElementById('sortBy')?.value || 'discount_desc';
 
+  const includeAnnuity = document.getElementById('includeAnnuity')?.checked ?? true;
+  const filterPartialShares = document.getElementById('filterPartialShares')?.checked ?? true;
+  const filterAuctions = document.getElementById('filterAuctions')?.checked ?? true;
+
   return {
     location: primaryLocation,
     locations: locList.length > 0 ? locList : ['Praha'],
@@ -726,6 +730,9 @@ function getSearchCriteria() {
     only_below_average: onlyBelowAverage,
     min_discount_percent: minDiscountPercent,
     custom_benchmark_czk_m2: customBenchmark,
+    include_annuity_in_price: includeAnnuity,
+    filter_partial_shares: filterPartialShares,
+    filter_auctions: filterAuctions,
     sort_by: sortBy,
     limit: 200
   };
@@ -974,6 +981,36 @@ function renderCardsView(listings) {
       ? `Ušetříte ${formatCZK(flat.difference_czk)}`
       : `Příplatek ${formatCZK(Math.abs(flat.difference_czk))}`;
 
+    // Caveat and Annuity tags
+    let caveatBadgesHtml = '';
+    if (flat.caveat_flags && flat.caveat_flags.length > 0) {
+      caveatBadgesHtml = `
+        <div class="flex flex-wrap gap-1 mt-1">
+          ${flat.caveat_flags.map(flag => `
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+              <i class="fa-solid fa-triangle-exclamation text-amber-700"></i> ${escapeHtml(flag)}
+            </span>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    let annuityBoxHtml = '';
+    if (flat.unpaid_annuity_czk > 0) {
+      annuityBoxHtml = `
+        <div class="bg-amber-50/90 border border-amber-200 text-amber-950 p-2.5 rounded-xl text-xs space-y-1">
+          <div class="flex items-center justify-between font-bold text-amber-900">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-circle-exclamation text-amber-600"></i> Nesplacená anuita:</span>
+            <span class="text-amber-800">+${formatCZK(flat.unpaid_annuity_czk)}</span>
+          </div>
+          <div class="text-[11px] text-amber-800/90 leading-tight">
+            V inzerátu uvedena jen záloha/akontace: <strong>${formatCZK(flat.advertised_price_czk || flat.price_czk - flat.unpaid_annuity_czk)}</strong>.<br/>
+            Skutečná celková cena po doplacení anuity: <strong>${formatCZK(flat.price_czk)}</strong>.
+          </div>
+        </div>
+      `;
+    }
+
     const card = document.createElement('div');
     card.className = 'flat-card bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex flex-col justify-between';
 
@@ -1003,14 +1040,19 @@ function renderCardsView(listings) {
           </div>
         </div>
 
-        <div class="p-4 sm:p-5 space-y-4">
-          <h3 class="font-bold text-sm sm:text-base text-slate-900 line-clamp-2 leading-snug hover:text-indigo-600 transition" title="${escapeHtml(flat.title)}">
-            ${escapeHtml(flat.title)}
-          </h3>
+        <div class="p-4 sm:p-5 space-y-3.5">
+          <div>
+            <h3 class="font-bold text-sm sm:text-base text-slate-900 line-clamp-2 leading-snug hover:text-indigo-600 transition" title="${escapeHtml(flat.title)}">
+              ${escapeHtml(flat.title)}
+            </h3>
+            ${caveatBadgesHtml}
+          </div>
+
+          ${annuityBoxHtml}
 
           <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/70 space-y-2 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-slate-600 font-medium">Nabídková cena:</span>
+              <span class="text-slate-600 font-medium">${flat.unpaid_annuity_czk > 0 ? 'Skutečná celková cena:' : 'Nabídková cena:'}</span>
               <span class="text-base font-extrabold text-slate-900">${formatCZK(flat.price_czk)}</span>
             </div>
 

@@ -14,8 +14,14 @@ class SearchCriteria(BaseModel):
     only_below_average: bool = Field(default=True, description="Filter to show only below-average priced flats")
     min_discount_percent: float = Field(default=0.0, description="Minimum discount percentage vs market average (e.g. 5 for 5%)")
     custom_benchmark_czk_m2: Optional[float] = Field(default=None, description="Optional manual override for average CZK/m2")
+
+    # Smart real-price evaluation & caveat filters
+    include_annuity_in_price: bool = Field(default=True, description="Automatically detect unpaid annuity (anuita) and add to total price")
+    filter_partial_shares: bool = Field(default=True, description="Filter out fractional share listings (1/2, 1/4 apod.)")
+    filter_auctions: bool = Field(default=True, description="Filter out auction and execution starting bids (dražby)")
+
     sort_by: str = Field(default="discount_desc", description="Sort order: discount_desc, savings_desc, price_m2_asc, price_asc, newest")
-    limit: int = Field(default=100, description="Maximum number of listings to return")
+    limit: int = Field(default=150, description="Maximum number of listings to return")
 
 
 class FlatListing(BaseModel):
@@ -34,6 +40,13 @@ class FlatListing(BaseModel):
     price_czk: float
     price_per_m2: float
     
+    # Annuity & Caveat metadata
+    advertised_price_czk: Optional[float] = None
+    unpaid_annuity_czk: float = 0.0
+    caveat_flags: List[str] = Field(default_factory=list)
+    is_partial_share: bool = False
+    is_auction: bool = False
+
     # Calculated metrics vs market
     market_avg_price_per_m2: float = 0.0
     expected_price_czk: float = 0.0
@@ -45,7 +58,6 @@ class FlatListing(BaseModel):
     description: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    published_date: Optional[str] = None
     extra_details: Dict[str, Any] = Field(default_factory=dict)
 
 
