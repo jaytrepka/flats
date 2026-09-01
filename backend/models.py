@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 class SearchCriteria(BaseModel):
     location: str = Field(default="Praha", description="Primary location name, e.g., 'Praha'")
-    locations: List[str] = Field(default_factory=lambda: ["Praha"], description="List of multiple selected locations/regions, e.g. ['Praha', 'Brno', 'Středočeský kraj']")
+    locations: Optional[List[str]] = Field(default=None, description="List of multiple selected locations/regions, e.g. ['Praha', 'Brno', 'Středočeský kraj']")
     dispositions: List[str] = Field(default_factory=lambda: ["1+kk", "2+kk", "3+kk"], description="Dispositions to search for")
     min_price: Optional[int] = Field(default=None, description="Minimum total price in CZK")
     max_price: Optional[int] = Field(default=None, description="Maximum total price in CZK")
