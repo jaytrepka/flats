@@ -7,6 +7,7 @@ import httpx
 from .base import BaseScraper
 from ..models import SearchCriteria, FlatListing
 from ..benchmarks import normalize_string, normalize_disposition
+from ..geo_resolver import is_listing_in_target_location, get_region_slug
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,9 @@ class BezrealitkyScraper(BaseScraper):
             ("estateType", "BYT"),
         ]
 
-        if criteria.location:
-            params.append(("location", criteria.location.strip()))
+        if criteria.location and criteria.location.lower() not in ["ceska republika", "cr", "čr", "cesko", "česko"]:
+            loc_param = get_region_slug(criteria.location)
+            params.append(("location", loc_param))
 
         if criteria.dispositions:
             for d in criteria.dispositions:
@@ -142,12 +144,14 @@ class BezrealitkyScraper(BaseScraper):
             # Address & Locality
             address_cs = adv.get('address({"locale":"CS"})') or adv.get("address") or fallback_location
             
-            # Check locality match if specific location requested
-            if norm_search_loc and norm_search_loc not in ["ceska republika", "cr", "cesko"]:
-                norm_addr = normalize_string(address_cs + " " + uri)
-                # Ensure the searched city/district name appears in address or slug
-                search_words = [w for w in norm_search_loc.split() if len(w) > 2]
-                if search_words and not any(w in norm_addr for w in search_words):
+            # Check strict locality match
+            if fallback_location and fallback_location.lower() not in ["ceska republika", "cr", "čr", "cesko", "česko"]:
+                if not is_listing_in_target_location(
+                    target_location=fallback_location,
+                    listing_locality=address_cs or "",
+                    listing_city=uri or "",
+                    listing_title=adv.get('imageAltText({"locale":"CS"})') or "",
+                ):
                     return None
 
             # Disposition

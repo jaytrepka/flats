@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 import logging
 from typing import List, Optional
 import httpx
@@ -7,6 +8,7 @@ import httpx
 from .base import BaseScraper
 from ..models import SearchCriteria, FlatListing
 from ..benchmarks import normalize_string, normalize_disposition
+from ..geo_resolver import is_listing_in_target_location, find_region_key, get_region_slug
 
 logger = logging.getLogger(__name__)
 
@@ -16,16 +18,16 @@ class SrealityScraper(BaseScraper):
     BASE_URL = "https://www.sreality.cz"
 
     DISPOSITION_MAP = {
-        "1+kk": "1-kk",
-        "1+1": "1-1",
-        "2+kk": "2-kk",
-        "2+1": "2-1",
-        "3+kk": "3-kk",
-        "3+1": "3-1",
-        "4+kk": "4-kk",
-        "4+1": "4-1",
-        "5+kk": "5-kk",
-        "5+1": "5-1",
+        "1+kk": "1+kk",
+        "1+1": "1+1",
+        "2+kk": "2+kk",
+        "2+1": "2+1",
+        "3+kk": "3+kk",
+        "3+1": "3+1",
+        "4+kk": "4+kk",
+        "4+1": "4+1",
+        "5+kk": "5+kk",
+        "5+1": "5+1",
         "6+": "6-a-vice",
         "atypicky": "atypicky",
     }
@@ -33,12 +35,17 @@ class SrealityScraper(BaseScraper):
     async def search(self, criteria: SearchCriteria) -> List[FlatListing]:
         listings: List[FlatListing] = []
         
-        # Build search URL
-        url = f"{self.BASE_URL}/hledani/prodej/byty"
+        # Build search URL: use region slug for Kraje (e.g. /hledani/prodej/byty/stredocesky-kraj)
+        # or region parameter for specific cities
         params = {}
-
-        if criteria.location and criteria.location.lower() not in ["ceska republika", "cr", "čr", "cesko", "česko"]:
-            params["region"] = criteria.location
+        is_reg = find_region_key(criteria.location) is not None
+        if is_reg:
+            reg_slug = get_region_slug(criteria.location)
+            url = f"{self.BASE_URL}/hledani/prodej/byty/{reg_slug}"
+        else:
+            url = f"{self.BASE_URL}/hledani/prodej/byty"
+            if criteria.location and criteria.location.lower() not in ["ceska republika", "cr", "čr", "cesko", "česko"]:
+                params["region"] = criteria.location
 
         # Dispositions
         if criteria.dispositions:
@@ -82,22 +89,46 @@ class SrealityScraper(BaseScraper):
                 page_props = data.get("props", {}).get("pageProps", {})
                 queries = page_props.get("dehydratedState", {}).get("queries", [])
 
+                raw_items = []
                 for q in queries:
                     q_key = q.get("queryKey", [])
                     if q_key and q_key[0] == "estatesSearch":
                         results = q.get("state", {}).get("data", {}).get("results", [])
                         for item in results:
-                            flat = self._parse_item(item)
+                            flat = self._parse_item(item, criteria.location)
                             if flat:
                                 listings.append(flat)
+                                raw_items.append(item)
                         break
+
+                # Concurrently enrich candidate listings with detail API (description & annuity)
+                async def enrich_sreality(flat_item: FlatListing, est_id: str):
+                    try:
+                        det_resp = await client.get(f"https://www.sreality.cz/api/v1/estates/{est_id}", timeout=3.0)
+                        if det_resp.status_code == 200:
+                            d_json = det_resp.json()
+                            text_val = d_json.get("text", {}).get("value", "") if isinstance(d_json.get("text"), dict) else d_json.get("description", "")
+                            if text_val:
+                                flat_item.description = text_val
+                            raw_ann = d_json.get("annuity")
+                            if raw_ann and isinstance(raw_ann, (int, float)) and raw_ann > 0:
+                                flat_item.extra_details["annuity"] = float(raw_ann)
+                    except Exception:
+                        pass
+
+                if listings:
+                    enrich_tasks = []
+                    for f in listings:
+                        est_id = f.id.replace("sreality_", "")
+                        enrich_tasks.append(enrich_sreality(f, est_id))
+                    await asyncio.gather(*enrich_tasks, return_exceptions=True)
 
         except Exception as e:
             logger.error(f"Error scraping Sreality: {e}", exc_info=True)
 
         return listings
 
-    def _parse_item(self, item: dict) -> Optional[FlatListing]:
+    def _parse_item(self, item: dict, target_location: str = "") -> Optional[FlatListing]:
         try:
             estate_id = str(item.get("id", ""))
             if not estate_id:
@@ -138,6 +169,18 @@ class SrealityScraper(BaseScraper):
 
             locality_parts = [p for p in [street, city_part, city, district] if p]
             locality_str = ", ".join(dict.fromkeys(locality_parts))
+
+            # Strict spatial verification
+            if target_location and target_location.lower() not in ["ceska republika", "cr", "čr", "cesko", "česko"]:
+                if not is_listing_in_target_location(
+                    target_location=target_location,
+                    listing_locality=locality_str,
+                    listing_city=city,
+                    listing_region=region or "",
+                    listing_district=district or "",
+                    listing_title=name,
+                ):
+                    return None
 
             # Images
             images = []

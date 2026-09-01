@@ -4,6 +4,7 @@ import logging
 from typing import List, Tuple, Dict, Optional
 from .models import SearchCriteria, FlatListing, PriceStats, SearchResponse
 from .benchmarks import get_benchmark_price_per_m2
+from .geo_resolver import is_listing_in_target_location
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,27 @@ def detect_hidden_costs_and_caveats(flat: FlatListing) -> Tuple[float, List[str]
 def calculate_pricing_and_filter(
     listings: List[FlatListing], criteria: SearchCriteria
 ) -> SearchResponse:
+    # 0. Enforce geographic boundary matching for all selected locations
+    loc_targets = criteria.locations if (criteria.locations and len(criteria.locations) > 0) else [criteria.location]
+    loc_targets = [l.strip() for l in loc_targets if l and l.strip()]
+
+    if loc_targets and not any(l.lower() in ["ceska republika", "cr", "čr", "cesko", "česko"] for l in loc_targets):
+        valid_geo_listings = []
+        for f in listings:
+            if any(
+                is_listing_in_target_location(
+                    target_location=loc,
+                    listing_locality=f.locality,
+                    listing_city=f.city,
+                    listing_region=f.region or "",
+                    listing_district=f.district or "",
+                    listing_title=f.title,
+                )
+                for loc in loc_targets
+            ):
+                valid_geo_listings.append(f)
+        listings = valid_geo_listings
+
     total_scanned = len(listings)
     
     # 1. Pre-process listings: Detect Annuities and Caveats, recalculate Real Total Price

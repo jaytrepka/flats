@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from .base import BaseScraper
 from ..models import SearchCriteria, FlatListing
 from ..benchmarks import normalize_string, normalize_disposition
+from ..geo_resolver import is_listing_in_target_location
 
 logger = logging.getLogger(__name__)
 
@@ -133,11 +134,14 @@ class RemaxScraper(BaseScraper):
                 if parts:
                     city = parts[0].split("-")[0].strip()
 
-            # Locality filter: verify searched city is in title or address
-            if norm_search_loc and norm_search_loc not in ["ceska republika", "cr", "cesko"]:
-                norm_full = normalize_string(f"{title} {display_addr} {url_suffix}")
-                search_words = [w for w in norm_search_loc.split() if len(w) > 2]
-                if search_words and not any(w in norm_full for w in search_words):
+            # Locality filter using strict geo_resolver
+            if fallback_location and fallback_location.lower() not in ["ceska republika", "cr", "čr", "cesko", "česko"]:
+                if not is_listing_in_target_location(
+                    target_location=fallback_location,
+                    listing_locality=locality,
+                    listing_city=city,
+                    listing_title=title,
+                ):
                     return None
 
             # Disposition
