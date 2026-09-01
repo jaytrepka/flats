@@ -34,26 +34,37 @@ def detect_hidden_costs_and_caveats(flat: FlatListing) -> Tuple[float, List[str]
     if raw_annuity and isinstance(raw_annuity, (int, float)) and raw_annuity >= 100000:
         annuity = float(raw_annuity)
 
-    # 1. Unpaid Annuity (Družstevní byty / Finep / převod podílu s doplatkem anuity)
+    # 1. Unpaid Annuity (Družstevní byty / Finep / Skanska / převod podílu s doplatkem anuity)
     if annuity == 0.0:
-        # Finep & standard cooperative listing pattern: 'Nesplacená část (anuita): 11.275.385 Kč' or 'doplatit anuitu ve výši...'
-        finep_match = re.search(
-            r'(?:nesplacen[áa]\s+část\s*\(anuita\)|nesplacen[áa]\s+anuita|doplatit\s+anuitu|zbývající\s+anuit[au]|anuita\s*činí|anuita\s*je|anuita\s*:)\s*([0-9\s\.\,]{4,18})\s*(?:kč|czk)?',
+        # Pattern 1: (anuita): 3 979 000 or anuita: 3 979 000 or anuita ve výši 3 979 000 Kč
+        annuity_matches_1 = re.findall(
+            r'(?:zbývající\s+anuit[au]|nesplacen[áa]\s+anuita|nesplacen[áa]\s+část\s*\(anuita\)|\(?\s*anuita\s*\)?)\s*(?:ve\s+výši|činí|je|:|\-)?\s*([0-9\s\.\,]{4,18})',
             full_text,
         )
-        if finep_match:
-            amt = parse_czk_amount(finep_match.group(1))
+        for m in annuity_matches_1:
+            amt = parse_czk_amount(m)
             if 150000 <= amt <= 35000000:
-                annuity = amt
+                annuity = max(annuity, amt)
 
     if annuity == 0.0:
-        # General pattern: 'anuita 2 500 000 Kč' or 'anuitu ve výši 1 800 000 Kč'
-        annuity_matches = re.findall(
-            r'(?:anuita|anuitu|anuitou)\s*(?:ve\s+výši|činí|je|:|\-)?\s*([0-9\s\.\,]{4,18})\s*(?:kč|czk)?',
+        # Pattern 2: nedoplacená část novostavby ... (anuita): 3 979 000
+        annuity_matches_2 = re.findall(
+            r'(?:nedoplacen[áa]|nesplacen[áa]|zbývající|doplatek)[^\n\r\.\,]*?(?:anuita|anuitu|anuitou|\(anuita\))\s*(?:ve\s+výši|činí|je|:|\-)?\s*([0-9\s\.\,]{4,18})',
             full_text,
         )
-        for m in annuity_matches:
+        for m in annuity_matches_2:
             amt = parse_czk_amount(m)
+            if 150000 <= amt <= 35000000:
+                annuity = max(annuity, amt)
+
+    if annuity == 0.0:
+        # Pattern 3: general mention of doplatek or odstupné + doplatek
+        doplatek_match = re.search(
+            r'(?:doplatek\s+družstvu|doplatek\s+anuit[ay]|doplatit\s+anuitu)\s*(?:ve\s+výši|činí|je|:|\-)?\s*([0-9\s\.\,]{4,18})',
+            full_text,
+        )
+        if doplatek_match:
+            amt = parse_czk_amount(doplatek_match.group(1))
             if 150000 <= amt <= 35000000:
                 annuity = max(annuity, amt)
 

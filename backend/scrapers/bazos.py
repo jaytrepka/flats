@@ -1,4 +1,5 @@
 import re
+import asyncio
 import logging
 from typing import List, Optional
 import httpx
@@ -57,19 +58,34 @@ class BazosScraper(BaseScraper):
                 for item in items:
                     flat = self._parse_item(item, criteria.location, norm_search_loc)
                     if flat:
-                        # Filter by disposition if multiple requested
-                        if criteria.dispositions:
-                            allowed_disps = [normalize_disposition(d) for d in criteria.dispositions]
-                            if flat.disposition not in allowed_disps and "jiny" not in allowed_disps and "atypicky" not in allowed_disps:
-                                continue
-
-                        # Filter by area if specified
                         if criteria.min_area and flat.area_m2 < criteria.min_area:
                             continue
                         if criteria.max_area and flat.area_m2 > criteria.max_area:
                             continue
 
                         listings.append(flat)
+
+                # Concurrently enrich listings with full description from detail page
+                async def enrich_one(flat_item: FlatListing):
+                    try:
+                        det_resp = await client.get(flat_item.url, timeout=3.5)
+                        if det_resp.status_code == 200:
+                            det_soup = BeautifulSoup(det_resp.text, "html.parser")
+                            full_page_text = det_soup.get_text("\n", strip=True)
+                            match = re.search(
+                                r'\[\d+\.\d+\.\s*\d{4}\]\s*(?:Smazat/ Upravit/ Topovat)?\s*(.*?)\s*(?:Jméno:|Cena:)',
+                                full_page_text,
+                                re.DOTALL | re.IGNORECASE,
+                            )
+                            if match:
+                                flat_item.description = match.group(1).strip()
+                            else:
+                                flat_item.description = full_page_text[:4000]
+                    except Exception as err:
+                        logger.debug(f"Failed to fetch Bazos detail for {flat_item.url}: {err}")
+
+                if listings:
+                    await asyncio.gather(*[enrich_one(f) for f in listings], return_exceptions=True)
 
         except Exception as e:
             logger.error(f"Error scraping Bazos: {e}", exc_info=True)
