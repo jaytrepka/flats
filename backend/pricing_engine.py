@@ -158,8 +158,8 @@ def calculate_pricing_and_filter(
         trimmed = sorted_p[trim_count:-trim_count] if len(sorted_p) > 4 else sorted_p
         
         dynamic_median = statistics.median(trimmed)
-        base_price_m2 = round(0.8 * dynamic_median + 0.2 * regional_benchmark, 0)
-        benchmark_source = f"Dynamický tržní průměr ({len(valid_prices_m2)} nabídek v lokalitě)"
+        base_price_m2 = round(0.5 * dynamic_median + 0.5 * regional_benchmark, 0)
+        benchmark_source = f"Tržní průměr inzerátů a cenové mapy ({len(valid_prices_m2)} nabídek v lokalitě)"
     elif len(valid_prices_m2) > 0:
         dynamic_median = statistics.median(valid_prices_m2)
         base_price_m2 = round(0.5 * dynamic_median + 0.5 * regional_benchmark, 0)

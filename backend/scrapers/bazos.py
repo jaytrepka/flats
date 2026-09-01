@@ -105,6 +105,10 @@ class BazosScraper(BaseScraper):
             if not url_path:
                 return None
 
+            # Filter out houses, villas, cottages, plots, and garages
+            if re.search(r'(?:rodinn[ýé]\s+d[uů]m|prodej\s+domu|řadov[ýé]\s+d[uů]m|vil[ay]|chalup[ay]|chat[ay]|pozemk[uy]|stavební\s+parcel|garáž|nebytov[ýé])', title.lower()):
+                return None
+
             # ID
             id_match = re.search(r'/inzerat/(\d+)/', url_path)
             estate_id = id_match.group(1) if id_match else url_path.replace("/", "_")

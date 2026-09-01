@@ -48,12 +48,13 @@ REGIONAL_BENCHMARKS: Dict[str, float] = {
     "kolin": 74000,
     "kutna hora": 69000,
     "mlada boleslav": 81000,
-    "melnik": 71000,
+    "melnik": 86000,
     "nymburk": 75000,
     "pribram": 68000,
     "rakovnik": 64000,
     "benesov": 78000,
     "podebrady": 86000,
+    "kralupy nad vltavou": 82000,
     
     # South Moravian Region (Jihomoravský kraj)
     "jihomoravsky": 95000,
