@@ -3,7 +3,7 @@ import statistics
 import logging
 from typing import List, Tuple, Dict, Optional
 from .models import SearchCriteria, FlatListing, PriceStats, SearchResponse
-from .benchmarks import get_benchmark_price_per_m2
+from .benchmarks import get_benchmark_price_per_m2, get_rental_benchmark_per_m2
 from .geo_resolver import is_listing_in_target_location
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,18 @@ def detect_hidden_costs_and_caveats(flat: FlatListing) -> Tuple[float, List[str]
             amt = parse_czk_amount(doplatek_match.group(1))
             if 150000 <= amt <= 35000000:
                 annuity = max(annuity, amt)
+
+    if annuity == 0.0:
+        # Pattern 4: Percentage downpayment (e.g. 'stačí složit pouze 20 % z ceny bytu, zbytek se splácí formou nájmu/anuitních splátek')
+        pct_match = re.search(
+            r'(?:složit\s+pouze|akontace\s+pouze|vlastní\s+zdroje\s+pouze|pouze|stačí)\s*(\d{1,2})\s*%\s*(?:z\s+ceny|z\s+celkové\s+ceny)',
+            full_text,
+        )
+        if pct_match and flat.price_czk > 0:
+            pct = float(pct_match.group(1))
+            if 5 <= pct <= 50 and any(kw in full_text for kw in ["družstev", "anuita", "anuit", "splát", "splác"]):
+                total_est_price = flat.price_czk / (pct / 100.0)
+                annuity = total_est_price - flat.price_czk
 
     if annuity > 0:
         caveats.append(f"Anuita +{int(annuity):,} Kč".replace(",", " "))
@@ -202,9 +214,23 @@ def calculate_pricing_and_filter(
         else:
             flat.bargain_tier = "ABOVE_MARKET"
 
+        # 3b. Rental & Investment ROI calculations
+        flat_loc = flat.locality or flat.city or criteria.location
+        rent_m2_month = get_rental_benchmark_per_m2(flat_loc, flat.disposition)
+        if flat.area_m2 > 0:
+            est_rent = round(flat.area_m2 * rent_m2_month, -2)  # nearest 100 CZK
+            flat.estimated_monthly_rent_czk = max(3000.0, est_rent)
+            flat.estimated_rent_min_czk = round(flat.estimated_monthly_rent_czk * 0.92, -2)
+            flat.estimated_rent_max_czk = round(flat.estimated_monthly_rent_czk * 1.08, -2)
+            
+            if flat.price_czk > 0:
+                annual_rent = flat.estimated_monthly_rent_czk * 12.0
+                flat.gross_rental_yield_p_a = round((annual_rent / flat.price_czk) * 100.0, 2)
+                flat.payback_years = round(flat.price_czk / annual_rent, 1)
+
         enriched_listings.append(flat)
 
-    # 4. Filtering (including caveat filters)
+    # 4. Filtering (including caveat and investment filters)
     filtered_listings: List[FlatListing] = []
     for flat in enriched_listings:
         # Filter out partial shares if requested
@@ -221,6 +247,11 @@ def calculate_pricing_and_filter(
         if criteria.min_discount_percent > 0 and flat.discount_percentage < criteria.min_discount_percent:
             continue
 
+        # Filter by minimum rental yield (ROI)
+        if criteria.min_rental_yield and criteria.min_rental_yield > 0:
+            if not flat.gross_rental_yield_p_a or flat.gross_rental_yield_p_a < criteria.min_rental_yield:
+                continue
+
         filtered_listings.append(flat)
 
     # 5. Sorting
@@ -228,6 +259,8 @@ def calculate_pricing_and_filter(
         filtered_listings.sort(key=lambda x: x.discount_percentage, reverse=True)
     elif criteria.sort_by == "savings_desc":
         filtered_listings.sort(key=lambda x: x.difference_czk, reverse=True)
+    elif criteria.sort_by == "yield_desc":
+        filtered_listings.sort(key=lambda x: x.gross_rental_yield_p_a or 0.0, reverse=True)
     elif criteria.sort_by == "price_m2_asc":
         filtered_listings.sort(key=lambda x: x.price_per_m2)
     elif criteria.sort_by == "price_asc":

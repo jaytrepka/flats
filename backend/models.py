@@ -19,8 +19,9 @@ class SearchCriteria(BaseModel):
     include_annuity_in_price: bool = Field(default=True, description="Automatically detect unpaid annuity (anuita) and add to total price")
     filter_partial_shares: bool = Field(default=True, description="Filter out fractional share listings (1/2, 1/4 apod.)")
     filter_auctions: bool = Field(default=True, description="Filter out auction and execution starting bids (dražby)")
+    min_rental_yield: Optional[float] = Field(default=None, description="Minimum gross rental yield percentage p.a. (e.g. 5.0 for 5%)")
 
-    sort_by: str = Field(default="discount_desc", description="Sort order: discount_desc, savings_desc, price_m2_asc, price_asc, newest")
+    sort_by: str = Field(default="discount_desc", description="Sort order: discount_desc, savings_desc, yield_desc, price_m2_asc, price_asc, newest")
     limit: int = Field(default=150, description="Maximum number of listings to return")
 
 
@@ -55,6 +56,13 @@ class FlatListing(BaseModel):
     is_bargain: bool = False
     bargain_tier: str = "FAIR_DEAL"  # SUPER_BARGAIN, GOOD_DEAL, FAIR_DEAL, ABOVE_MARKET
     
+    # Rental & Investment ROI Estimates
+    estimated_monthly_rent_czk: Optional[float] = None
+    estimated_rent_min_czk: Optional[float] = None
+    estimated_rent_max_czk: Optional[float] = None
+    gross_rental_yield_p_a: Optional[float] = None  # e.g. 5.2%
+    payback_years: Optional[float] = None  # e.g. 19.2 years
+
     description: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None

@@ -434,6 +434,33 @@
             </div>
           </div>
 
+          <!-- Investment & Rental Yield Filter -->
+          <div class="lg:col-span-12 bg-gradient-to-r from-emerald-50/70 via-teal-50/50 to-slate-50 p-3.5 rounded-xl border border-emerald-200/80">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <span class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs shadow-xs">
+                  <i class="fa-solid fa-coins"></i>
+                </span>
+                <div>
+                  <label class="text-xs font-bold text-slate-900 block">
+                    Investiční kalkulačka: Odhad nájemného & Hrubý roční výnos (% p.a.)
+                  </label>
+                  <span class="text-[11px] text-slate-600">Automatický propočet měsíčního nájmu a návratnosti dle lokality</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <label for="minRentalYield" class="text-xs font-semibold text-slate-700 whitespace-nowrap">Min. výnos z nájmu:</label>
+                <select id="minRentalYield" class="px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold bg-white text-emerald-950 focus:border-emerald-500 outline-none shadow-2xs">
+                  <option value="">Všechny výnosy (bez limitu)</option>
+                  <option value="4.0">≥ 4.0 % p.a.</option>
+                  <option value="5.0">≥ 5.0 % p.a. (Investiční cíl)</option>
+                  <option value="6.0">≥ 6.0 % p.a. (Vysoký výnos)</option>
+                  <option value="7.0">≥ 7.0 % p.a. (Extrémní výnos)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Row 5: Action Button & Sort -->
@@ -443,6 +470,7 @@
             <select id="sortBy" class="px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-700 focus:border-indigo-500 outline-none w-full sm:w-auto">
               <option value="discount_desc">🔥 Největší sleva (% oproti průměru)</option>
               <option value="savings_desc">💰 Nejvíce ušetřeno (Kč pod průměrem)</option>
+              <option value="yield_desc">📈 Nejvyšší výnos z nájmu (% p.a.)</option>
               <option value="price_m2_asc">📉 Nejnižší cena za m² (Kč/m²)</option>
               <option value="price_asc">🏷️ Nejnižší celková cena (Kč)</option>
               <option value="price_desc">🏷️ Nejvyšší celková cena (Kč)</option>
@@ -635,7 +663,8 @@
               <th class="px-4 py-3">Plocha</th>
               <th class="px-4 py-3">Nabídková cena</th>
               <th class="px-4 py-3">Cena / m²</th>
-              <th class="px-4 py-3">Očekávaná tržní hodnota</th>
+              <th class="px-4 py-3 text-emerald-800 font-bold">Odhad nájmu & Výnos</th>
+              <th class="px-4 py-3">Očekávaná hodnota</th>
               <th class="px-4 py-3 text-emerald-700 font-bold">Úspora / Sleva</th>
               <th class="px-4 py-3">Portál</th>
               <th class="px-4 py-3 text-right">Akce</th>

@@ -187,6 +187,195 @@ def get_benchmark_price_per_m2(location: str) -> float:
     return NATIONAL_AVERAGE_PRICE_PER_M2
 
 
+# Regional benchmark rental prices per m2 per month (in CZK/m²/month)
+RENTAL_BENCHMARKS_M2_MONTH: Dict[str, float] = {
+    # Prague and districts
+    "praha": 420.0,
+    "praha 1": 520.0,
+    "praha 2": 480.0,
+    "praha 3": 450.0,
+    "praha 4": 390.0,
+    "praha 5": 430.0,
+    "praha 6": 420.0,
+    "praha 7": 460.0,
+    "praha 8": 430.0,
+    "praha 9": 380.0,
+    "praha 10": 390.0,
+
+    # Major regional capitals
+    "brno": 350.0,
+    "brno-mesto": 350.0,
+    "brno-venkov": 280.0,
+    "plzen": 280.0,
+    "olomouc": 275.0,
+    "hradec kralove": 280.0,
+    "pardubice": 270.0,
+    "ceske budejovice": 270.0,
+    "liberec": 250.0,
+    "zlin": 250.0,
+    "jihlava": 240.0,
+    "karlovy vary": 220.0,
+    "usti nad labem": 190.0,
+    "ostrava": 220.0,
+
+    # Central Bohemian Region (Středočeský kraj)
+    "stredocesky": 280.0,
+    "praha-vychod": 330.0,
+    "praha-zapad": 340.0,
+    "ricany": 340.0,
+    "kladno": 260.0,
+    "beroun": 280.0,
+    "kolin": 245.0,
+    "kutna hora": 235.0,
+    "mlada boleslav": 275.0,
+    "melnik": 255.0,
+    "kralupy nad vltavou": 265.0,
+    "nymburk": 250.0,
+    "pribram": 230.0,
+    "rakovnik": 220.0,
+    "benesov": 260.0,
+    "podebrady": 280.0,
+
+    # South Moravian Region (Jihomoravský kraj)
+    "jihomoravsky": 290.0,
+    "blansko": 240.0,
+    "breclav": 230.0,
+    "hodonin": 210.0,
+    "vyskov": 230.0,
+    "znojmo": 220.0,
+
+    # Moravian-Silesian Region (Moravskoslezský kraj)
+    "moravskoslezsky": 200.0,
+    "frydek-mistek": 215.0,
+    "opava": 210.0,
+    "karvina": 170.0,
+    "havirov": 180.0,
+    "novy jicin": 205.0,
+    "bruntal": 175.0,
+    "trinec": 210.0,
+
+    # Olomouc Region (Olomoucký kraj)
+    "olomoucky": 235.0,
+    "prostejov": 220.0,
+    "prerov": 195.0,
+    "sumperk": 195.0,
+    "jesenik": 175.0,
+
+    # Zlín Region (Zlínský kraj)
+    "zlinsky": 235.0,
+    "kromeriz": 215.0,
+    "uherske hradiste": 240.0,
+    "vsetin": 205.0,
+
+    # Vysočina Region
+    "vysocina": 225.0,
+    "trebic": 210.0,
+    "havlickuv brod": 215.0,
+    "pelhrimov": 220.0,
+    "zdar nad sazavou": 220.0,
+
+    # South Bohemian Region (Jihočeský kraj)
+    "jihocesky": 245.0,
+    "tabor": 230.0,
+    "pisek": 235.0,
+    "strakonice": 210.0,
+    "jindrichuv hradec": 215.0,
+    "cesky krumlov": 240.0,
+    "prachatice": 200.0,
+
+    # Plzeň Region (Plzeňský kraj)
+    "plzensky": 255.0,
+    "klatovy": 220.0,
+    "rokycany": 235.0,
+    "domazlice": 215.0,
+    "tachov": 205.0,
+
+    # Karlovy Vary Region (Karlovarský kraj)
+    "karlovarsky": 205.0,
+    "cheb": 210.0,
+    "sokolov": 185.0,
+
+    # Ústí nad Labem Region (Ústecký kraj)
+    "ustecky": 190.0,
+    "teplice": 210.0,
+    "most": 180.0,
+    "chomutov": 185.0,
+    "decin": 185.0,
+    "litomerice": 225.0,
+    "louny": 195.0,
+
+    # Liberec Region (Liberecký kraj)
+    "liberecky": 235.0,
+    "jablonec nad nisou": 220.0,
+    "ceska lipa": 210.0,
+    "semily": 200.0,
+    "turnov": 240.0,
+
+    # Hradec Králové Region (Královéhradecký kraj)
+    "kralovehradecky": 250.0,
+    "trutnov": 215.0,
+    "nachod": 210.0,
+    "jicin": 230.0,
+    "rychnov nad kneznou": 225.0,
+
+    # Pardubice Region (Pardubický kraj)
+    "pardubicky": 245.0,
+    "chrudim": 230.0,
+    "svitavy": 210.0,
+    "usti nad orlici": 215.0,
+}
+
+NATIONAL_AVERAGE_RENT_PER_M2_MONTH = 260.0
+
+DISPOSITION_RENT_MULTIPLIERS: Dict[str, float] = {
+    "1+kk": 1.15,
+    "1+1": 1.12,
+    "2+kk": 1.00,
+    "2+1": 0.98,
+    "3+kk": 0.90,
+    "3+1": 0.88,
+    "4+kk": 0.82,
+    "4+1": 0.80,
+    "5+kk": 0.78,
+    "5+1": 0.76,
+    "6+": 0.75,
+    "atypicky": 1.00,
+    "jiny": 1.00,
+}
+
+
+def get_rental_benchmark_per_m2(location: str, disposition: str = "2+kk") -> float:
+    """Find the estimated monthly rental rate (CZK/m²/month) for a given location and disposition."""
+    norm_loc = normalize_string(location)
+    base_rent_m2 = NATIONAL_AVERAGE_RENT_PER_M2_MONTH
+
+    # 1. Direct match
+    if norm_loc in RENTAL_BENCHMARKS_M2_MONTH:
+        base_rent_m2 = RENTAL_BENCHMARKS_M2_MONTH[norm_loc]
+    else:
+        # 2. Check sorted keys (longest first)
+        sorted_keys = sorted(RENTAL_BENCHMARKS_M2_MONTH.keys(), key=lambda k: len(k), reverse=True)
+        matched = False
+        for key in sorted_keys:
+            if key in norm_loc:
+                base_rent_m2 = RENTAL_BENCHMARKS_M2_MONTH[key]
+                matched = True
+                break
+
+        if not matched:
+            words = norm_loc.split()
+            for word in words:
+                if word in RENTAL_BENCHMARKS_M2_MONTH:
+                    base_rent_m2 = RENTAL_BENCHMARKS_M2_MONTH[word]
+                    break
+
+    # 3. Apply disposition multiplier
+    norm_disp = normalize_disposition(disposition)
+    multiplier = DISPOSITION_RENT_MULTIPLIERS.get(norm_disp, 1.00)
+
+    return round(base_rent_m2 * multiplier, 1)
+
+
 def normalize_disposition(disp_text: str) -> str:
     """Normalize dispositions like '2+kk', '2+1', 'GARSONIERA', '1+kk'."""
     if not disp_text:

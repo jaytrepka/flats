@@ -717,6 +717,7 @@ function getSearchCriteria() {
   const includeAnnuity = document.getElementById('includeAnnuity')?.checked ?? true;
   const filterPartialShares = document.getElementById('filterPartialShares')?.checked ?? true;
   const filterAuctions = document.getElementById('filterAuctions')?.checked ?? true;
+  const minRentalYield = document.getElementById('minRentalYield')?.value ? parseFloat(document.getElementById('minRentalYield').value) : null;
 
   return {
     location: primaryLocation,
@@ -733,6 +734,7 @@ function getSearchCriteria() {
     include_annuity_in_price: includeAnnuity,
     filter_partial_shares: filterPartialShares,
     filter_auctions: filterAuctions,
+    min_rental_yield: minRentalYield,
     sort_by: sortBy,
     limit: 200
   };
@@ -934,6 +936,7 @@ function sortAndRenderResults() {
   currentResults.sort((a, b) => {
     if (sortBy === 'discount_desc') return b.discount_percentage - a.discount_percentage;
     if (sortBy === 'savings_desc') return b.difference_czk - a.difference_czk;
+    if (sortBy === 'yield_desc') return (b.gross_rental_yield_p_a || 0) - (a.gross_rental_yield_p_a || 0);
     if (sortBy === 'price_m2_asc') return a.price_per_m2 - b.price_per_m2;
     if (sortBy === 'price_asc') return a.price_czk - b.price_czk;
     if (sortBy === 'price_desc') return b.price_czk - a.price_czk;
@@ -1011,6 +1014,43 @@ function renderCardsView(listings) {
       `;
     }
 
+    // Rental & ROI Box
+    let rentalBoxHtml = '';
+    if (flat.estimated_monthly_rent_czk && flat.estimated_monthly_rent_czk > 0) {
+      const yieldVal = flat.gross_rental_yield_p_a ? flat.gross_rental_yield_p_a.toFixed(1) + '%' : '–';
+      const paybackText = flat.payback_years ? `${flat.payback_years.toFixed(0)} let` : '';
+      
+      let yieldBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+      let yieldIcon = 'fa-percent';
+      if (flat.gross_rental_yield_p_a >= 6.0) {
+        yieldBadgeClass = 'bg-emerald-100 text-emerald-900 border-emerald-300 font-extrabold';
+        yieldIcon = 'fa-arrow-trend-up text-emerald-600';
+      } else if (flat.gross_rental_yield_p_a >= 4.5) {
+        yieldBadgeClass = 'bg-blue-100 text-blue-900 border-blue-300 font-bold';
+        yieldIcon = 'fa-chart-line text-blue-600';
+      }
+
+      rentalBoxHtml = `
+        <div class="bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-indigo-50/40 p-2.5 rounded-xl border border-emerald-200/80 text-xs space-y-1.5 shadow-2xs">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5 font-bold text-slate-900">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="text-slate-700">Odhad nájmu:</span>
+              <span class="text-emerald-800 text-sm font-black">${formatCZK(flat.estimated_monthly_rent_czk)}</span>
+              <span class="text-[10px] text-slate-500 font-normal">/měs</span>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${yieldBadgeClass}">
+              <i class="fa-solid ${yieldIcon} text-[10px]"></i> Výnos: ${yieldVal} p.a.
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-600">
+            <span>Rozmezí: <strong>${formatNumber(flat.estimated_rent_min_czk)} – ${formatNumber(flat.estimated_rent_max_czk)} Kč</strong></span>
+            ${paybackText ? `<span class="text-slate-600">Návratnost: <strong>${paybackText}</strong></span>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
     const card = document.createElement('div');
     card.className = 'flat-card bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden flex flex-col justify-between';
 
@@ -1040,7 +1080,7 @@ function renderCardsView(listings) {
           </div>
         </div>
 
-        <div class="p-4 sm:p-5 space-y-3.5">
+        <div class="p-4 sm:p-5 space-y-3">
           <div>
             <h3 class="font-bold text-sm sm:text-base text-slate-900 line-clamp-2 leading-snug hover:text-indigo-600 transition" title="${escapeHtml(flat.title)}">
               ${escapeHtml(flat.title)}
@@ -1071,6 +1111,9 @@ function renderCardsView(listings) {
               <span class="font-extrabold">${savingsText}</span>
             </div>
           </div>
+
+          ${rentalBoxHtml}
+
         </div>
       </div>
 
@@ -1105,6 +1148,11 @@ function renderTableView(listings) {
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-slate-50/80 transition';
 
+    const rentText = flat.estimated_monthly_rent_czk
+      ? `<div class="font-bold text-emerald-800">${formatCZK(flat.estimated_monthly_rent_czk)}/m</div>
+         <div class="text-[10px] text-slate-500 font-semibold">${flat.gross_rental_yield_p_a ? flat.gross_rental_yield_p_a.toFixed(1) + '% p.a.' : ''}</div>`
+      : '–';
+
     tr.innerHTML = `
       <td class="px-4 py-3">
         <div class="flex items-center gap-3">
@@ -1126,6 +1174,7 @@ function renderTableView(listings) {
       <td class="px-4 py-3 font-semibold text-slate-800">${flat.area_m2} m²</td>
       <td class="px-4 py-3 font-extrabold text-slate-900">${formatCZK(flat.price_czk)}</td>
       <td class="px-4 py-3 font-bold text-slate-700">${formatNumber(flat.price_per_m2)} Kč</td>
+      <td class="px-4 py-3">${rentText}</td>
       <td class="px-4 py-3 text-slate-600 line-through">${formatCZK(flat.expected_price_czk)}</td>
       <td class="px-4 py-3 font-black ${flat.difference_czk > 0 ? 'text-emerald-600' : 'text-slate-600'}">
         ${flat.difference_czk > 0 ? '+' : ''}${formatCZK(flat.difference_czk)} (${flat.discount_percentage}%)
